@@ -25,8 +25,27 @@
 * **Easy Reminders**: Choose how often you'd like to hear a reminder (every 5, 10, 15, 30, or 60 minutes). Reminders automatically align with your clock (e.g. 10:00, 10:15).
 * **Simple Volume Control**: Adjust the reminder volume smoothly to your preference.
 * **Quiet Hours**: Schedule quiet times to pause reminders while sleeping or working.
-* **Smart Audio Detection**: Pauses reminders automatically if you are watching a video, playing music, or on a call.
+* **Smart Audio Detection**: Automatically skips playing reminders if you are listening to music, watching a video, or in a voice call.
 * **Matches Your Theme**: Automatically switches colors to fit your Windows Light or Dark taskbar theme.
+
+---
+
+## 🎵 How to Add Your Own Custom Audio Files
+
+While AutoZikr comes with 12 built-in Zikr recordings, you can easily add your own custom audio files:
+
+1. **Folder Location**: Create a folder named **`zikr_audio`** in the exact same location where `autozikr.exe` is saved.
+2. **File Format**: Save your custom audio clips inside `zikr_audio` in **`.wav`** format (e.g., `MyZikr.wav`).
+3. **Automatic Pick-Up**: Whenever a reminder triggers, AutoZikr will automatically scan `zikr_audio` and include your custom `.wav` files in the random audio selection alongside the built-in recordings!
+
+---
+
+## 🎧 How Smart Audio Detection Works
+
+AutoZikr is designed to be respectful of your active computer usage:
+
+* **Real-Time Sound Card Metering**: Every time a reminder timer reaches zero, AutoZikr queries the Windows Core Audio API (WASAPI) to check if your active speakers or headphones are outputting sound.
+* **No Interruption**: If sound is detected (such as a YouTube video, Spotify music, a Zoom/Teams call, or a game), AutoZikr **automatically pauses and skips the reminder** so it never plays over your active audio or interrupts calls.
 
 ---
 
