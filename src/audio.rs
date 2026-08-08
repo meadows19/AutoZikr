@@ -11,6 +11,7 @@ use windows::Win32::Media::Audio::{
 use windows::Win32::Media::Audio::Endpoints::IAudioMeterInformation;
 
 // Custom binding to MCI send string function in winmm.dll
+#[cfg(target_os = "windows")]
 #[link(name = "winmm")]
 extern "system" {
     fn mciSendStringW(

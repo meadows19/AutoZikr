@@ -57,15 +57,36 @@ pub struct SystemTime {
     pub milliseconds: u16,
 }
 
+#[cfg(target_os = "windows")]
 #[link(name = "kernel32")]
 extern "system" {
     fn GetLocalTime(lpSystemTime: *mut SystemTime);
 }
 
+#[cfg(target_os = "windows")]
 pub fn get_local_time() -> SystemTime {
     let mut st = SystemTime::default();
     unsafe { GetLocalTime(&mut st) };
     st
+}
+
+#[cfg(target_os = "macos")]
+pub fn get_local_time() -> SystemTime {
+    use std::time::{SystemTime as StdSystemTime, UNIX_EPOCH};
+    let now = StdSystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
+    let sec = (now % 60) as u16;
+    let min = ((now / 60) % 60) as u16;
+    let hour = ((now / 3600) % 24) as u16;
+    SystemTime {
+        year: 2026,
+        month: 8,
+        day_of_week: 6,
+        day: 8,
+        hour,
+        minute: min,
+        second: sec,
+        milliseconds: 0,
+    }
 }
 
 pub fn get_time_string() -> String {
