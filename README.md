@@ -1,11 +1,15 @@
-# 🌟 AutoZikr for Windows
+# 🌟 AutoZikr (Windows & macOS)
 
-**AutoZikr** is a simple, lightweight Windows desktop app that plays periodic Zikr (Islamic remembrance) audio reminders throughout your day. It runs quietly in your Windows taskbar with zero setup needed.
+**AutoZikr** is a simple, lightweight desktop application that plays periodic Zikr (Islamic remembrance) audio reminders throughout your day. It runs quietly in your system tray / menu bar with zero setup needed.
 
 ---
 
-## 🚀 [DOWNLOAD AUTOZIKR (autozikr.exe)](https://github.com/meadows19/AutoZikr-WIN/releases/latest/download/autozikr.exe)
-*Click the big link above to download the application file (`autozikr.exe`). No installer or setup is required — just run it!*
+## 🚀 Download AutoZikr
+
+* 🪟 **[Download for Windows (`autozikr.exe`)](https://github.com/meadows19/AutoZikr-WIN/releases/latest/download/autozikr.exe)**
+* 🍎 **[Download for macOS (`AutoZikr_macOS_aarch64.dmg`)](https://github.com/meadows19/AutoZikr-WIN/releases/latest/download/AutoZikr_macOS_aarch64.dmg)**
+
+*No installer or complex setup required — just download and run!*
 
 ---
 
