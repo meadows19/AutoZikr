@@ -11,6 +11,8 @@ on:
 jobs:
   build-macos:
     runs-on: macos-14 # GitHub Apple Silicon M1 Runner
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
