@@ -37,7 +37,8 @@ fn main() {
     }
 
     // Embed executable icon if building for Windows
-    if std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default() == "windows" {
+    #[cfg(target_os = "windows")]
+    {
         let mut res = winres::WindowsResource::new();
         res.set_resource_file("app.rc");
         if let Err(e) = res.compile() {
