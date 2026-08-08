@@ -6,7 +6,7 @@ use windows::core::PCWSTR;
 use windows::Win32::Foundation::HWND;
 use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_MULTITHREADED};
 use windows::Win32::Media::Audio::{
-    IMMDeviceEnumerator, MMDeviceEnumerator, eRender, eConsole, PlaySoundW, SND_ASYNC, SND_MEMORY, SND_NODEFAULT,
+    IMMDeviceEnumerator, MMDeviceEnumerator, eRender, eConsole, PlaySoundW, SND_MEMORY, SND_NODEFAULT,
 };
 use windows::Win32::Media::Audio::Endpoints::IAudioMeterInformation;
 
@@ -21,15 +21,53 @@ extern "system" {
     ) -> u32;
 }
 
-/// Plays WAV audio bytes directly from memory asynchronously (0ms latency, zero disk operations).
-pub fn play_sound_bytes(data: &'static [u8], _volume: u32) {
-    let addr = data.as_ptr() as usize;
+fn find_subchunk(data: &[u8], tag: &[u8; 4]) -> Option<usize> {
+    if data.len() < 12 {
+        return None;
+    }
+    let mut idx = 12; // Skip RIFF header
+    while idx + 8 <= data.len() {
+        if &data[idx..idx + 4] == tag {
+            return Some(idx);
+        }
+        let chunk_size = u32::from_le_bytes([
+            data[idx + 4],
+            data[idx + 5],
+            data[idx + 6],
+            data[idx + 7],
+        ]) as usize;
+        idx += 8 + chunk_size;
+    }
+    None
+}
+
+/// Plays WAV audio bytes directly from memory asynchronously with real-time volume scaling.
+pub fn play_sound_bytes(data: &'static [u8], volume: u32) {
+    let vol_factor = (volume as f32 / 100.0).clamp(0.0, 1.0);
+    
+    let mut buf = data.to_vec();
+    if vol_factor < 0.999 {
+        if let Some(data_idx) = find_subchunk(&buf, b"data") {
+            let sample_start = data_idx + 8;
+            if sample_start < buf.len() {
+                let samples_slice = &mut buf[sample_start..];
+                for chunk in samples_slice.chunks_exact_mut(2) {
+                    let sample = i16::from_le_bytes([chunk[0], chunk[1]]);
+                    let scaled = (sample as f32 * vol_factor) as i16;
+                    let le = scaled.to_le_bytes();
+                    chunk[0] = le[0];
+                    chunk[1] = le[1];
+                }
+            }
+        }
+    }
+
     std::thread::spawn(move || {
         unsafe {
             let _ = PlaySoundW(
-                PCWSTR(addr as *const u16),
+                PCWSTR(buf.as_ptr() as *const u16),
                 None,
-                SND_MEMORY | SND_ASYNC | SND_NODEFAULT,
+                SND_MEMORY | SND_NODEFAULT,
             );
         }
     });
