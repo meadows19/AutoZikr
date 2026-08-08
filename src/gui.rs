@@ -1129,7 +1129,12 @@ impl GuiContext {
             };
             let _ = self.fmt_body_bold.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
             let _ = self.fmt_body_bold.SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
-            self.draw_text(rt, "Launch on Windows Startup", &self.fmt_body_bold, &rect_sl, text_white);
+            let startup_label = if cfg!(target_os = "macos") {
+                "Launch on macOS Startup"
+            } else {
+                "Launch on Windows Startup"
+            };
+            self.draw_text(rt, startup_label, &self.fmt_body_bold, &rect_sl, text_white);
 
             self.draw_toggle_switch(rt, 330.0, 315.0, state.config.run_at_startup);
         }
