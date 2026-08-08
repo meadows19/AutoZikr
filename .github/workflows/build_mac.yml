@@ -23,32 +23,34 @@ jobs:
         with:
           targets: aarch64-apple-darwin, x86_64-apple-darwin
 
-      - name: Build native release binary for Apple Silicon (aarch64)
-        run: cargo build --release --target aarch64-apple-darwin
+      - name: Build native release binaries for Apple Silicon (aarch64) and Intel (x86_64)
+        run: |
+          cargo build --release --target aarch64-apple-darwin
+          cargo build --release --target x86_64-apple-darwin
 
-      - name: Create macOS App Bundle (.app)
+      - name: Create Universal 2 macOS App Bundle (.app)
         run: |
           mkdir -p AutoZikr.app/Contents/MacOS
           mkdir -p AutoZikr.app/Contents/Resources
-          cp target/aarch64-apple-darwin/release/autozikr AutoZikr.app/Contents/MacOS/autozikr
+          lipo -create target/aarch64-apple-darwin/release/autozikr target/x86_64-apple-darwin/release/autozikr -output AutoZikr.app/Contents/MacOS/autozikr
           cp Info.plist AutoZikr.app/Contents/Info.plist
           chmod +x AutoZikr.app/Contents/MacOS/autozikr
 
       - name: Package into macOS Disk Image (.dmg)
         run: |
           mkdir dist
-          hdiutil create -volname "AutoZikr" -srcfolder AutoZikr.app -ov -format UDZO dist/AutoZikr_macOS_aarch64.dmg
+          hdiutil create -volname "AutoZikr" -srcfolder AutoZikr.app -ov -format UDZO dist/AutoZikr_macOS_Universal.dmg
 
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AutoZikr_macOS_aarch64.dmg
-          path: dist/AutoZikr_macOS_aarch64.dmg
+          name: AutoZikr_macOS_Universal.dmg
+          path: dist/AutoZikr_macOS_Universal.dmg
 
       - name: Release Asset Upload
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
         with:
-          files: dist/AutoZikr_macOS_aarch64.dmg
+          files: dist/AutoZikr_macOS_Universal.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
