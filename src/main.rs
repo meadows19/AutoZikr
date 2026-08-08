@@ -1,9 +1,14 @@
 #![windows_subsystem = "windows"] // Hides console window on startup in release builds
 
 mod config;
-mod audio;
 mod builtin_audio;
+mod platform;
+
+#[cfg(target_os = "windows")]
+mod audio;
+#[cfg(target_os = "windows")]
 mod gui;
+#[cfg(target_os = "windows")]
 mod tray;
 
 use std::sync::{Arc, Mutex};
@@ -12,8 +17,11 @@ use std::fs;
 use std::thread;
 use std::time::Duration;
 
+#[cfg(target_os = "windows")]
 use windows::core::{w, PCWSTR};
+#[cfg(target_os = "windows")]
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM, RECT};
+#[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DestroyWindow, DispatchMessageW, GetMessageW, RegisterClassW,
     ShowWindow, TranslateMessage, MSG, WNDCLASSW,
@@ -23,10 +31,13 @@ use windows::Win32::UI::WindowsAndMessaging::{
     WINDOW_EX_STYLE, PostQuitMessage, HCURSOR, HICON,
     LoadCursorW, IDC_ARROW, LoadIconW, IDI_APPLICATION
 };
+#[cfg(target_os = "windows")]
 use windows::Win32::Graphics::Gdi::InvalidateRect;
 
 use crate::config::AppConfig;
+#[cfg(target_os = "windows")]
 use crate::gui::{wnd_proc, AppState};
+#[cfg(target_os = "windows")]
 use crate::tray::{
     add_tray_icon, remove_tray_icon, show_context_menu, update_tray_status,
     ID_TRAY_EXIT, ID_TRAY_OPEN, ID_TRAY_TOGGLE, WM_TRAY_ICON
@@ -187,6 +198,7 @@ pub fn get_seconds_until_next_boundary(interval_mins: u32) -> u32 {
     }
 }
 
+#[cfg(target_os = "windows")]
 fn main() {
     // 1. Initialize portable config path
     let mut exe_dir = std::env::current_exe().unwrap_or_default();
@@ -344,9 +356,41 @@ fn main() {
         // 6. Main GUI Message Loop
         let mut msg = MSG::default();
         while GetMessageW(&mut msg, None, 0, 0).as_bool() {
-
             TranslateMessage(&msg);
             DispatchMessageW(&msg);
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn main() {
+    println!("AutoZikr starting on macOS...");
+    let mut exe_dir = std::env::current_exe().unwrap_or_default();
+    exe_dir.pop();
+    let config_path = exe_dir.join("config.ini");
+    let mut config = AppConfig::load_from_file(&config_path);
+
+    let mut audio_files = get_audio_files();
+
+    loop {
+        thread::sleep(Duration::from_secs(1));
+        if config.enabled {
+            if !is_in_quiet_hours(&config) {
+                if !platform::is_audio_playing() {
+                    if !audio_files.is_empty() {
+                        let rand_idx = get_random_index(audio_files.len());
+                        let selected_file = audio_files[rand_idx].clone();
+                        if let Some(bytes) = builtin_audio::get_builtin_bytes(&selected_file) {
+                            platform::play_sound_bytes(bytes, config.volume);
+                        } else {
+                            let mut exe_path = std::env::current_exe().unwrap_or_default();
+                            exe_path.pop();
+                            let full_wav_path = exe_path.join("zikr_audio").join(&selected_file);
+                            platform::play_sound(&full_wav_path, config.volume);
+                        }
+                    }
+                }
+            }
         }
     }
 }
