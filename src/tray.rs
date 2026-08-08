@@ -20,7 +20,7 @@ pub const ID_TRAY_EXIT: u32 = 1003;
 pub fn add_tray_icon(hwnd: HWND) -> bool {
     unsafe {
         let is_dark = crate::gui::is_system_dark_mode();
-        let icon_id = if is_dark { 2 } else { 1 };
+        let icon_id = if is_dark { 2 } else { 3 };
         let hinstance = windows::Win32::System::LibraryLoader::GetModuleHandleW(None).unwrap_or_default();
         let hicon = LoadIconW(hinstance, PCWSTR(icon_id as *const u16)).unwrap_or_else(|_| {
             LoadIconW(None, IDI_APPLICATION).unwrap_or(HICON::default())
@@ -160,7 +160,7 @@ pub fn show_context_menu(hwnd: HWND, enabled: bool) {
 pub fn update_tray_icon_theme(hwnd: HWND) {
     let is_dark = crate::gui::is_system_dark_mode();
     enable_dark_mode_menus(hwnd, is_dark);
-    let icon_id = if is_dark { 2 } else { 1 };
+    let icon_id = if is_dark { 2 } else { 3 };
     unsafe {
         let hinstance = windows::Win32::System::LibraryLoader::GetModuleHandleW(None).unwrap_or_default();
         let hicon = LoadIconW(hinstance, PCWSTR(icon_id as *const u16)).unwrap_or_else(|_| {
