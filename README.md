@@ -6,8 +6,8 @@
 
 ## 🚀 Download AutoZikr
 
-* 🪟 **[Download for Windows (`autozikr.exe`)](https://github.com/meadows19/AutoZikr-WIN/releases/latest/download/autozikr.exe)**
-* 🍎 **[Download for macOS (`AutoZikr_macOS_aarch64.dmg`)](https://github.com/meadows19/AutoZikr-WIN/releases/latest/download/AutoZikr_macOS_aarch64.dmg)**
+* 🪟 **[Download for Windows (`autozikr.exe`)](https://github.com/meadows19/AutoZikr/releases/latest/download/autozikr.exe)**
+* 🍎 **[Download for macOS (`AutoZikr_macOS_aarch64.dmg`)](https://github.com/meadows19/AutoZikr/releases/latest/download/AutoZikr_macOS_aarch64.dmg)**
 
 *No installer or complex setup required — just download and run!*
 
