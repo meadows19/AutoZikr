@@ -41,9 +41,13 @@ fn find_subchunk(data: &[u8], tag: &[u8; 4]) -> Option<usize> {
     None
 }
 
-/// Plays WAV audio bytes directly from memory asynchronously with real-time volume scaling.
+/// Plays WAV audio bytes directly from memory asynchronously with real-time perceptual volume scaling.
 pub fn play_sound_bytes(data: &'static [u8], volume: u32) {
-    let vol_factor = (volume as f32 / 100.0).clamp(0.0, 1.0);
+    let linear_factor = (volume as f32 / 100.0).clamp(0.0, 1.0);
+    // Cubic perceptual volume scaling: human hearing perceives sound logarithmically (decibels).
+    // Linear amplitude scaling makes 20% volume sound almost identical to 100% volume.
+    // Cubic scaling (linear^3) provides smooth, dramatic volume changes matching human ears.
+    let vol_factor = linear_factor * linear_factor * linear_factor;
     
     let mut buf = data.to_vec();
     if vol_factor < 0.999 {
@@ -91,31 +95,39 @@ fn send_mci_command(cmd: &str) -> Result<(), u32> {
     }
 }
 
-/// Plays a WAV file asynchronously in a separate thread.
-/// Takes file path and volume (0 to 100).
+/// Plays a WAV file asynchronously from disk with real-time perceptual volume scaling.
 pub fn play_sound(path: &Path, volume: u32) {
-    let path_str = path.to_string_lossy();
-    
-    // We use an atomic counter to generate a unique alias for each playing sound.
-    // This allows multiple sound playbacks (e.g. previewing and timer trigger) to run concurrently.
-    static ALIAS_COUNTER: AtomicUsize = AtomicUsize::new(0);
-    let alias_id = ALIAS_COUNTER.fetch_add(1, Ordering::Relaxed);
-    let alias = format!("zp_{}", alias_id);
-
-    // MCI commands require paths with spaces to be quoted
-    let open_cmd = format!("open \"{}\" type waveaudio alias {}", path_str, alias);
-    let vol_cmd = format!("setaudio {} volume to {}", alias, volume * 10); // MCI volume is 0..1000
-    let play_cmd = format!("play {} wait", alias);
-    let close_cmd = format!("close {}", alias);
-
-    // Spawn a thread to handle blocking playback
-    std::thread::spawn(move || {
-        if send_mci_command(&open_cmd).is_ok() {
-            let _ = send_mci_command(&vol_cmd);
-            let _ = send_mci_command(&play_cmd);
-            let _ = send_mci_command(&close_cmd);
+    if let Ok(bytes) = std::fs::read(path) {
+        let linear_factor = (volume as f32 / 100.0).clamp(0.0, 1.0);
+        let vol_factor = linear_factor * linear_factor * linear_factor;
+        
+        let mut buf = bytes;
+        if vol_factor < 0.999 {
+            if let Some(data_idx) = find_subchunk(&buf, b"data") {
+                let sample_start = data_idx + 8;
+                if sample_start < buf.len() {
+                    let samples_slice = &mut buf[sample_start..];
+                    for chunk in samples_slice.chunks_exact_mut(2) {
+                        let sample = i16::from_le_bytes([chunk[0], chunk[1]]);
+                        let scaled = (sample as f32 * vol_factor) as i16;
+                        let le = scaled.to_le_bytes();
+                        chunk[0] = le[0];
+                        chunk[1] = le[1];
+                    }
+                }
+            }
         }
-    });
+
+        std::thread::spawn(move || {
+            unsafe {
+                let _ = PlaySoundW(
+                    PCWSTR(buf.as_ptr() as *const u16),
+                    None,
+                    SND_MEMORY | SND_NODEFAULT,
+                );
+            }
+        });
+    }
 }
 
 /// Queries Windows Core Audio endpoint to check if the system is currently outputting sound.
