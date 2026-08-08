@@ -3,7 +3,7 @@ name = "autozikr"
 version = "1.1.2"
 edition = "2021"
 
-[dependencies]
+[target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.58.0", features = [
     "Win32_Foundation",
     "Win32_UI_WindowsAndMessaging",
@@ -27,7 +27,11 @@ windows = { version = "0.58.0", features = [
     "Foundation_Numerics",
 ] }
 
-[build-dependencies]
+[target.'cfg(target_os = "macos")'.dependencies]
+tray-icon = "0.19.0"
+rodio = "0.19.0"
+
+[target.'cfg(target_os = "windows")'.build-dependencies]
 winres = "0.1.12"
 
 [profile.release]
