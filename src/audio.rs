@@ -45,10 +45,9 @@ fn find_subchunk(data: &[u8], tag: &[u8; 4]) -> Option<usize> {
 /// Plays WAV audio bytes directly from memory asynchronously with real-time perceptual volume scaling.
 pub fn play_sound_bytes(data: &'static [u8], volume: u32) {
     let linear_factor = (volume as f32 / 100.0).clamp(0.0, 1.0);
-    // Cubic perceptual volume scaling: human hearing perceives sound logarithmically (decibels).
-    // Linear amplitude scaling makes 20% volume sound almost identical to 100% volume.
-    // Cubic scaling (linear^3) provides smooth, dramatic volume changes matching human ears.
-    let vol_factor = linear_factor * linear_factor * linear_factor;
+    // Smooth perceptual volume scaling (x^1.4): provides smooth decibel scaling
+    // while ensuring low volume slider levels (5%-30%) remain clearly audible on desktop speakers.
+    let vol_factor = linear_factor.powf(1.4);
     
     let mut buf = data.to_vec();
     if vol_factor < 0.999 {
@@ -100,7 +99,7 @@ fn send_mci_command(cmd: &str) -> Result<(), u32> {
 pub fn play_sound(path: &Path, volume: u32) {
     if let Ok(bytes) = std::fs::read(path) {
         let linear_factor = (volume as f32 / 100.0).clamp(0.0, 1.0);
-        let vol_factor = linear_factor * linear_factor * linear_factor;
+        let vol_factor = linear_factor.powf(1.4);
         
         let mut buf = bytes;
         if vol_factor < 0.999 {

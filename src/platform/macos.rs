@@ -19,7 +19,7 @@ pub fn is_system_dark_mode() -> bool {
 
 /// Plays embedded WAV audio bytes using native macOS CoreAudio via rodio.
 pub fn play_sound_bytes(data: &'static [u8], volume: u32) {
-    let vol_factor = ((volume as f32 / 100.0).clamp(0.0, 1.0)).powi(3);
+    let vol_factor = ((volume as f32 / 100.0).clamp(0.0, 1.0)).powf(1.4);
     let cursor = Cursor::new(data);
 
     std::thread::spawn(move || {
@@ -38,7 +38,7 @@ pub fn play_sound_bytes(data: &'static [u8], volume: u32) {
 /// Plays external WAV audio from disk with volume scaling via rodio CoreAudio.
 pub fn play_sound(path: &Path, volume: u32) {
     if let Ok(bytes) = fs::read(path) {
-        let vol_factor = ((volume as f32 / 100.0).clamp(0.0, 1.0)).powi(3);
+        let vol_factor = ((volume as f32 / 100.0).clamp(0.0, 1.0)).powf(1.4);
         let cursor = Cursor::new(bytes);
 
         std::thread::spawn(move || {
