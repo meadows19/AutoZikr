@@ -362,9 +362,12 @@ impl GuiContext {
             match event {
                 WM_LBUTTONUP => {
                     let is_visible = IsWindowVisible(self.hwnd).as_bool();
+                    let just_hidden = self.last_hide_time.get().elapsed().as_millis() < 250;
                     if is_visible {
                         let _ = ShowWindow(self.hwnd, SW_HIDE);
                         self.last_hide_time.set(std::time::Instant::now());
+                    } else if just_hidden {
+                        // Window was just hidden by deactivation from this click; keep it hidden.
                     } else {
                         self.position_window_at_tray();
                         let _ = SetForegroundWindow(self.hwnd);
