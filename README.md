@@ -1,93 +1,54 @@
-# AutoZikr — Native Windows Zikr Reminders
+# 🌟 AutoZikr for Windows
 
-**AutoZikr** is a lightweight, hardware-accelerated, native Windows desktop application designed to play periodic Zikr reminders. Built in Rust with Direct2D and Win32 APIs, it runs as a 100% self-contained standalone executable with zero external runtime dependencies.
-
----
-
-## 🌟 Key Features
-
-* **Truly Standalone Executable**: All 12 authentic Zikr audio files are embedded directly inside `autozikr.exe`. Audio streams directly out of RAM memory via Win32 `PlaySoundW` (`SND_MEMORY`) with **0ms latency, zero disk I/O, and zero external files required**.
-* **Optional Custom Audio**: Supports loading external `.wav` files placed in a `zikr_audio/` folder alongside `autozikr.exe` if desired.
-* **Modern Direct2D GUI**: Hardware-accelerated Direct2D and DirectWrite user interface featuring cards, stepped volume sliders (5% increments), frequency interval sliders (5-minute steps), smooth mouse wheel scrolling, and drag-and-drop thumb controls.
-* **Dynamic Light/Dark Theme Sensing**: Senses Windows taskbar themes (`SystemUsesLightTheme`) and automatically switches system tray icons between pure white (dark mode) and deep charcoal (light mode).
-* **Past-the-Hour Wall-Clock Alignment**: Reminders automatically align to exact past-the-hour clock boundaries (e.g., 00:05, 00:10, 00:15) regardless of when turned on.
-* **Quiet Hours Scheduling**: Configurable Quiet Hours rules supporting presets (`Every Day`, `Work Days`, `Weekends`, `Custom`), custom day selection, and overnight midnight-span rules.
-* **Background Audio Sensing**: Queries Windows WASAPI audio meters to prevent playing reminders if media or call audio is already playing on the system.
-* **Instant Single-Click Activation**: System tray icon responds instantly on the very first single click to show or hide the control panel.
+**AutoZikr** is a simple, lightweight Windows desktop app that plays periodic Zikr (Islamic remembrance) audio reminders throughout your day. It runs quietly in your Windows taskbar with zero setup needed.
 
 ---
 
-## 📁 Embedded Zikr Audio Library
-
-The single executable binary includes the following 12 authentic Zikr audio files embedded directly at compile time:
-
-1. `4th Kalima.wav`
-2. `Alhamdulillah.wav`
-3. `Allah Allah.wav`
-4. `Allah.wav`
-5. `Allahu Akbar.wav`
-6. `Hawqala.wav`
-7. `Istigfar.wav`
-8. `Kalima.wav`
-9. `Kalima2.wav`
-10. `Kalimatan.wav`
-11. `Salawat.wav`
-12. `SubhanAllah.wav`
+## 🚀 [DOWNLOAD AUTOZIKR (autozikr.exe)](https://github.com/meadows19/AutoZikr-WIN/releases/latest/download/autozikr.exe)
+*Click the big link above to download the application file (`autozikr.exe`). No installer or setup is required — just run it!*
 
 ---
 
-## ⚙️ Configuration & Registry Footprint
+## 📌 How to Use
 
-### Local Configuration File (`config.ini`)
-User preferences are persisted locally in `config.ini` in the application directory:
-
-| Key | Values | Description |
-| :--- | :--- | :--- |
-| `enabled` | `true` / `false` | Master Active / Inactive toggle state |
-| `interval_mins` | `5` to `60` (5-min steps) | Reminder frequency interval |
-| `volume` | `0` to `100` (5% steps) | Audio playback volume percentage |
-| `quiet_hours_enabled` | `true` / `false` | Master Quiet Hours toggle |
-| `quiet_hours_rules` | Encoded String | Quiet Hours schedule rules and day masks |
-| `run_at_startup` | `true` / `false` | Windows startup preference flag |
-
-### Windows Registry
-AutoZikr maintains a clean, minimal registry footprint:
-
-* **Written**: `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` -> `AutoZikr` (`REG_SZ`)  
-  *Added only when "Launch on Windows Startup" is enabled; removed when disabled.*
-* **Read**: `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize`  
-  *Sensed dynamically to adapt tray icon colors to light or dark taskbars.*
+1. **Download & Run**: Download `autozikr.exe` and double-click it to start.
+2. **Find the Icon in Your System Tray**:
+   * AutoZikr runs quietly in the system tray down by your Windows clock.
+   * **Don't see the star icon?** Click the **`^`** (overflow arrow) near your clock on the taskbar to view hidden icons. You can drag the **⭐ star icon** out onto your taskbar so it's always visible!
+3. **Open Control Panel**: Single-click or right-click the star icon to open settings.
 
 ---
 
-## 🛠️ Building from Source
+## ✨ Features
 
-### Prerequisites
-* **Rust Toolchain**: `x86_64-pc-windows-msvc`
-* **C++ Build Tools**: Visual Studio Build Tools (for `rc.exe`)
-
-### Asset & Release Compilation Commands
-
-```powershell
-# 1. (Optional) Generate multi-size star ICO assets (16x16, 24x24, 32x32, 48x48, 256x256)
-powershell -ExecutionPolicy Bypass -File "scratch/generate_simple_star_icons.ps1"
-
-# 2. Clean build cache to ensure winres updates app.rc resources
-cargo clean
-
-# 3. Compile standalone release binary
-cargo build --release
-```
-
-The output standalone binary is generated at:
-`target\release\autozikr.exe` (~26.2 MB with all 12 WAV files embedded).
+* **100% Standalone**: All 12 authentic Zikr audio recordings are built directly into the app. No extra folders or audio files needed!
+* **Easy Reminders**: Choose how often you'd like to hear a reminder (every 5, 10, 15, 30, or 60 minutes). Reminders automatically align with your clock (e.g. 10:00, 10:15).
+* **Simple Volume Control**: Adjust the reminder volume smoothly to your preference.
+* **Quiet Hours**: Schedule quiet times to pause reminders while sleeping or working.
+* **Smart Audio Detection**: Pauses reminders automatically if you are watching a video, playing music, or on a call.
+* **Matches Your Theme**: Automatically switches colors to fit your Windows Light or Dark taskbar theme.
 
 ---
 
-## 🚀 Deployment Instructions (`C:\Program Files`)
+## 🔊 Included Zikr Reminders
 
-Because **AutoZikr** is a single self-contained executable, deployment requires copying only the executable file:
+AutoZikr randomly plays one of 12 authentic Zikr audio recordings:
 
-1. Create directory: `C:\Program Files\AutoZikr\`
-2. Copy `target\release\autozikr.exe` into `C:\Program Files\AutoZikr\autozikr.exe`
-3. Double-click `autozikr.exe` to run.
+1. **SubhanAllah**
+2. **Alhamdulillah**
+3. **Allahu Akbar**
+4. **Astaghfirullah**
+5. **Kalima** (*La ilaha illallah*)
+6. **Kalima 2** (*Ash-hadu an la ilaha illallah...*)
+7. **4th Kalima** (*La ilaha illallahu wahdahu la sharika lah...*)
+8. **Allah Allah**
+9. **Allah**
+10. **Hawqala** (*La hawla wa la quwwata illa billah*)
+11. **Kalimatan** (*SubhanAllahi wa bihamdihi SubhanAllahil Adheem*)
+12. **Salawat** (*Allahumma Salli ala Muhammad*)
+
+---
+
+## 💻 Building from Source
+
+For developers looking to inspect or compile the Rust source code, check out [BUILDING.md](BUILDING.md).
