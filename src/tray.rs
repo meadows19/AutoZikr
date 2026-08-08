@@ -82,9 +82,46 @@ pub fn remove_tray_icon(hwnd: HWND) -> bool {
     }
 }
 
+type SetPreferredAppModeFn = unsafe extern "system" fn(i32) -> i32;
+type AllowDarkModeForWindowFn = unsafe extern "system" fn(HWND, bool) -> bool;
+type FlushMenuThemesFn = unsafe extern "system" fn();
+
+pub fn enable_dark_mode_menus(hwnd: HWND, is_dark: bool) {
+    unsafe {
+        use windows::core::PCSTR;
+        use windows::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
+        use windows::Win32::UI::Controls::SetWindowTheme;
+
+        if let Ok(hmod) = LoadLibraryA(PCSTR(b"uxtheme.dll\0".as_ptr())) {
+            let mode = if is_dark { 2 } else { 3 }; // 2 = ForceDark, 3 = ForceLight
+            
+            if let Some(set_preferred_app_mode) = GetProcAddress(hmod, PCSTR(135 as *const u8)) {
+                let func: SetPreferredAppModeFn = std::mem::transmute(set_preferred_app_mode);
+                func(mode);
+            }
+            
+            if let Some(allow_dark_mode) = GetProcAddress(hmod, PCSTR(133 as *const u8)) {
+                let func: AllowDarkModeForWindowFn = std::mem::transmute(allow_dark_mode);
+                func(hwnd, is_dark);
+            }
+
+            if let Some(flush_menu_themes) = GetProcAddress(hmod, PCSTR(136 as *const u8)) {
+                let func: FlushMenuThemesFn = std::mem::transmute(flush_menu_themes);
+                func();
+            }
+        }
+
+        let theme = if is_dark { w!("DarkMode_Explorer") } else { w!("Explorer") };
+        let _ = SetWindowTheme(hwnd, PCWSTR(theme.as_ptr()), None);
+    }
+}
+
 /// Displays the right-click popup context menu for the system tray icon.
 pub fn show_context_menu(hwnd: HWND, enabled: bool) {
     unsafe {
+        let is_dark = crate::gui::is_system_dark_mode();
+        enable_dark_mode_menus(hwnd, is_dark);
+
         let menu = CreatePopupMenu().unwrap();
         
         let open_text = w!("Open Dashboard");
@@ -122,6 +159,7 @@ pub fn show_context_menu(hwnd: HWND, enabled: bool) {
 /// Updates system tray icon theme dynamically when system light/dark settings change
 pub fn update_tray_icon_theme(hwnd: HWND) {
     let is_dark = crate::gui::is_system_dark_mode();
+    enable_dark_mode_menus(hwnd, is_dark);
     let icon_id = if is_dark { 2 } else { 1 };
     unsafe {
         let hinstance = windows::Win32::System::LibraryLoader::GetModuleHandleW(None).unwrap_or_default();
