@@ -73,6 +73,7 @@ pub struct AppConfig {
     pub quiet_hours_enabled: bool,
     pub quiet_hours_rules: String, // format: "enabled,preset,start,end,days,overnight;..."
     pub run_at_startup: bool,
+    pub first_launch: bool,
 }
 
 impl AppConfig {
@@ -84,6 +85,7 @@ impl AppConfig {
             quiet_hours_enabled: false,
             quiet_hours_rules: "true,every_day,22,11,1111111,true;true,work_days,9,17,1111100,false".to_string(),
             run_at_startup: false,
+            first_launch: true,
         }
     }
 
@@ -112,6 +114,7 @@ impl AppConfig {
                             "quiet_hours_enabled" => config.quiet_hours_enabled = val.parse().unwrap_or(false),
                             "quiet_hours_rules" => config.quiet_hours_rules = val.to_string(),
                             "run_at_startup" => config.run_at_startup = val.parse().unwrap_or(false),
+                            "first_launch" => config.first_launch = val.parse().unwrap_or(true),
                             _ => {}
                         }
                     }
@@ -130,13 +133,15 @@ impl AppConfig {
                  volume = {}\n\
                  quiet_hours_enabled = {}\n\
                  quiet_hours_rules = {}\n\
-                 run_at_startup = {}\n",
+                 run_at_startup = {}\n\
+                 first_launch = {}\n",
                 self.enabled,
                 self.interval_mins,
                 self.volume,
                 self.quiet_hours_enabled,
                 self.quiet_hours_rules,
-                self.run_at_startup
+                self.run_at_startup,
+                self.first_launch
             );
             let _ = file.write_all(content.as_bytes());
         }

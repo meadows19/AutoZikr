@@ -348,6 +348,22 @@ fn main() {
 
         // 4. Create and attach system tray icon
         add_tray_icon(hwnd);
+
+        // 4b. Check first launch notification
+        {
+            let mut state_guard = state.lock().unwrap();
+            if state_guard.config.first_launch {
+                state_guard.config.first_launch = false;
+                let cfg_path = state_guard.config_path.clone();
+                state_guard.config.save_to_file(&cfg_path);
+
+                crate::tray::show_tray_notification(
+                    hwnd,
+                    "AutoZikr",
+                    "AutoZikr is running! Click the ^ arrow near your clock to find the star icon and open settings.",
+                );
+            }
+        }
         update_tray_status(hwnd, state.lock().unwrap().config.enabled);
 
         // Start hidden in tray
@@ -441,6 +457,15 @@ fn main() {
     exe_dir.pop();
     let config_path = exe_dir.join("config.ini");
     let mut config = AppConfig::load_from_file(&config_path);
+
+    if config.first_launch {
+        config.first_launch = false;
+        config.save_to_file(&config_path);
+        let _ = std::process::Command::new("osascript")
+            .arg("-e")
+            .arg("display notification \"AutoZikr is running! Click the star icon in your top Menu Bar to open settings.\" with title \"AutoZikr\"")
+            .status();
+    }
 
     let mut audio_files = get_audio_files();
 
