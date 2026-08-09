@@ -1,0 +1,55 @@
+name: Build Windows Binary & Installer
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Build Windows Release Binary
+        run: cargo build --release
+
+      - name: Install Inno Setup
+        uses: ISCC/action-innosetup@v1
+
+      - name: Compile Inno Setup Installer
+        run: iscc installer.iss
+
+      - name: Upload Windows Installer Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoZikr_Windows_Setup.exe
+          path: dist/AutoZikr_Windows_Setup.exe
+
+      - name: Upload Windows Portable Binary Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: autozikr.exe
+          path: target/release/autozikr.exe
+
+      - name: Release Asset Upload
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/AutoZikr_Windows_Setup.exe
+            target/release/autozikr.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

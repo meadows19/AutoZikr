@@ -4,12 +4,9 @@
 
 ---
 
-## 🚀 Download AutoZikr
-
-* 🪟 **[Download for Windows (`autozikr.exe`)](https://github.com/meadows19/AutoZikr/releases/latest/download/autozikr.exe)**
-* 🍎 **[Download for macOS (`AutoZikr_macOS_Universal.dmg`)](https://github.com/meadows19/AutoZikr/releases/latest/download/AutoZikr_macOS_Universal.dmg)**
-
-*Works natively on Windows and both Intel & Apple Silicon (M1/M2/M3/M4) Macs!*
+* 🪟 **[Download for Windows Setup (`AutoZikr_Windows_Setup.exe`)](https://github.com/meadows19/AutoZikr/releases/latest/download/AutoZikr_Windows_Setup.exe)** *(Recommended Installer)*
+* 📦 **[Download Windows Portable (`autozikr.exe`)](https://github.com/meadows19/AutoZikr/releases/latest/download/autozikr.exe)** *(Standalone Portable Binary)*
+* 🍎 **[Download for macOS (`AutoZikr_macOS_Universal.dmg`)](https://github.com/meadows19/AutoZikr/releases/latest/download/AutoZikr_macOS_Universal.dmg)** *(Apple Silicon & Intel)*
 
 ---
 
