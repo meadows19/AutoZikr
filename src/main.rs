@@ -364,11 +364,6 @@ fn main() {
                 state_guard.config.save_to_file(&cfg_path);
 
                 crate::gui::show_first_run_flyout(hinstance.into());
-                crate::tray::show_tray_notification(
-                    hwnd,
-                    "AutoZikr",
-                    "AutoZikr is running! Click the ^ arrow near your clock to find the star icon and open settings.",
-                );
             }
         }
         update_tray_status(hwnd, state.lock().unwrap().config.enabled);
