@@ -39,7 +39,7 @@
 
 ---
 
-## 🎵 How to Add Your Own Custom Audio Files
+## 🎙️ How to Add Your Own Custom Audio Files
 
 While AutoZikr comes with 12 built-in Zikr recordings, you can easily add your own custom audio files:
 
@@ -58,7 +58,7 @@ AutoZikr randomly plays one of 12 authentic Zikr audio recordings:
 3. **Allahu Akbar**
 4. **Astaghfirullah**
 5. **Kalima** (*La ilaha illallah*)
-6. **Kalima 2** (*Ash-hadu an la ilaha illallah...*)
+6. **Kalima 2** (*La ilaha illallah*)
 7. **4th Kalima** (*La ilaha illallahu wahdahu la sharika lah...*)
 8. **Allah Allah**
 9. **Allah**
