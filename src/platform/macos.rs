@@ -224,43 +224,33 @@ pub fn run_macos_app() {
 
     let event_loop = EventLoopBuilder::new().build();
 
-    let menu = Menu::new();
-    let item_open = MenuItem::new("Open Control Panel...", true, None);
-    let item_toggle = MenuItem::new(
-        if config.enabled { "Pause Reminders" } else { "Resume Reminders" },
-        true,
-        None,
-    );
-    let item_quit = MenuItem::new("Quit AutoZikr", true, None);
-
-    let _ = menu.append(&item_open);
-    let _ = menu.append(&PredefinedMenuItem::separator());
-    let _ = menu.append(&item_toggle);
-    let _ = menu.append(&PredefinedMenuItem::separator());
-    let _ = menu.append(&item_quit);
-
     let is_dark = is_system_dark_mode();
     let icon_bytes = create_star_rgba_bytes(32, is_dark);
     let icon = Icon::from_rgba(icon_bytes, 32, 32).unwrap();
 
+    use tray_icon::{TrayIconBuilder, Icon, TrayIconEvent};
+
     let _tray_icon = TrayIconBuilder::new()
-        .with_menu(Box::new(menu))
         .with_tooltip("AutoZikr")
         .with_icon(icon)
         .build()
         .unwrap();
 
+    let tray_channel = TrayIconEvent::receiver();
+
     use tao::window::WindowBuilder;
     use tao::dpi::LogicalSize;
     use wry::WebViewBuilder;
 
-    let window = WindowBuilder::new()
-        .with_title("AutoZikr Control Panel")
-        .with_inner_size(LogicalSize::new(420.0, 640.0))
-        .with_resizable(false)
-        .with_visible(true)
-        .build(&event_loop)
-        .unwrap();
+    let window = Arc::new(
+        WindowBuilder::new()
+            .with_title("AutoZikr Control Panel")
+            .with_inner_size(LogicalSize::new(420.0, 640.0))
+            .with_resizable(false)
+            .with_visible(true)
+            .build(&event_loop)
+            .unwrap()
+    );
 
     let config_arc = Arc::new(Mutex::new(config.clone()));
     let config_clone = Arc::clone(&config_arc);
@@ -269,12 +259,17 @@ pub fn run_macos_app() {
 
     let config_ipc = Arc::clone(&config_arc);
     let cfg_path_ipc = config_path.clone();
+    let window_ipc = Arc::clone(&window);
 
     let webview = WebViewBuilder::new()
         .with_html(html_content)
         .with_ipc_handler(move |req| {
             let msg = req.body();
-            if msg == "test_audio" {
+            if msg == "quit" {
+                std::process::exit(0);
+            } else if msg == "hide" {
+                window_ipc.set_visible(false);
+            } else if msg == "test_audio" {
                 let audio_files = crate::get_audio_files();
                 if !audio_files.is_empty() {
                     let rand_idx = crate::get_random_index(audio_files.len());
@@ -348,12 +343,6 @@ pub fn run_macos_app() {
         }
     });
 
-    let open_id = item_open.id().clone();
-    let toggle_id = item_toggle.id().clone();
-    let quit_id = item_quit.id().clone();
-
-    let menu_channel = muda::MenuEvent::receiver();
-
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::WaitUntil(std::time::Instant::now() + Duration::from_millis(100));
 
@@ -361,20 +350,19 @@ pub fn run_macos_app() {
             window.set_visible(false);
         }
 
-        if let Ok(m_event) = menu_channel.try_recv() {
-            if m_event.id == open_id {
-                window.set_visible(true);
-                window.set_focus();
-            } else if m_event.id == toggle_id {
-                let mut cfg = config_arc.lock().unwrap();
-                cfg.enabled = !cfg.enabled;
-                cfg.save_to_file(&config_path);
-                item_toggle.set_text(if cfg.enabled { "Pause Reminders" } else { "Resume Reminders" });
-            } else if m_event.id == quit_id {
-                *control_flow = ControlFlow::Exit;
+        if let Ok(t_event) = tray_channel.try_recv() {
+            if let TrayIconEvent::Click { .. } = t_event {
+                let is_vis = window.is_visible().unwrap_or(false);
+                if is_vis {
+                    window.set_visible(false);
+                } else {
+                    window.set_visible(true);
+                    window.set_focus();
+                }
             }
         }
     });
+}
 }
 
 fn generate_control_panel_html(config: &crate::config::AppConfig) -> String {
@@ -521,6 +509,11 @@ fn generate_control_panel_html(config: &crate::config::AppConfig) -> String {
         <span class="slider"></span>
       </label>
     </div>
+  </div>
+
+  <div style="display: flex; gap: 12px; margin-top: 20px;">
+    <button class="btn" style="flex: 1;" onclick="window.ipc.postMessage('hide')">Done</button>
+    <button class="btn" style="flex: 1; background-color: #EF4444;" onclick="window.ipc.postMessage('quit')">Quit AutoZikr</button>
   </div>
 
 <script>
