@@ -2138,22 +2138,25 @@ pub fn show_first_run_flyout(hinstance: windows::Win32::Foundation::HINSTANCE) {
                     FillRect(_hdc, &rect, bg_brush);
                     FrameRect(_hdc, &rect, border_brush);
 
+                    use std::ffi::OsStr;
+                    use std::os::windows::ffi::OsStrExt;
+
                     SetBkMode(_hdc, TRANSPARENT);
                     
                     SetTextColor(_hdc, windows::Win32::Foundation::COLORREF(0x0081B910)); // #10B981
-                    let title = w!("AutoZikr is Running!");
-                    TextOutW(_hdc, 16, 14, title.as_ptr(), title.len() as i32);
+                    let title: Vec<u16> = OsStr::new("AutoZikr is Running!").encode_wide().collect();
+                    let _ = TextOutW(_hdc, 16, 14, &title);
 
                     SetTextColor(_hdc, windows::Win32::Foundation::COLORREF(0x00FCFAF8)); // #F8FAFC
-                    let msg1 = w!("Click the star icon (or ^ overflow arrow)");
-                    TextOutW(_hdc, 16, 40, msg1.as_ptr(), msg1.len() as i32);
+                    let msg1: Vec<u16> = OsStr::new("Click the star icon (or ^ overflow arrow)").encode_wide().collect();
+                    let _ = TextOutW(_hdc, 16, 40, &msg1);
 
-                    let msg2 = w!("near your clock to open settings.");
-                    TextOutW(_hdc, 16, 60, msg2.as_ptr(), msg2.len() as i32);
+                    let msg2: Vec<u16> = OsStr::new("near your clock to open settings.").encode_wide().collect();
+                    let _ = TextOutW(_hdc, 16, 60, &msg2);
 
                     SetTextColor(_hdc, windows::Win32::Foundation::COLORREF(0x0098A394)); // #94A3B8
-                    let btn_text = w!("[ Click to Dismiss ]");
-                    TextOutW(_hdc, 210, 82, btn_text.as_ptr(), btn_text.len() as i32);
+                    let btn_text: Vec<u16> = OsStr::new("[ Click to Dismiss ]").encode_wide().collect();
+                    let _ = TextOutW(_hdc, 210, 82, &btn_text);
 
                     let _ = windows::Win32::Graphics::Gdi::DeleteObject(bg_brush);
                     let _ = windows::Win32::Graphics::Gdi::DeleteObject(border_brush);

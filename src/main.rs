@@ -363,7 +363,7 @@ fn main() {
                 let cfg_path = state_guard.config_path.clone();
                 state_guard.config.save_to_file(&cfg_path);
 
-                crate::gui::show_first_run_flyout(hinstance);
+                crate::gui::show_first_run_flyout(hinstance.into());
                 crate::tray::show_tray_notification(
                     hwnd,
                     "AutoZikr",
