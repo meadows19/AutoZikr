@@ -268,7 +268,15 @@ fn main() {
     let mut exe_dir = std::env::current_exe().unwrap_or_default();
     exe_dir.pop();
     let config_path = exe_dir.join("config.ini");
-    let config = AppConfig::load_from_file(&config_path);
+    let mut config = AppConfig::load_from_file(&config_path);
+
+    // Sync system startup status (e.g. from Inno Setup installer or Windows Registry) with config.ini
+    if crate::gui::is_run_at_startup_enabled() {
+        if !config.run_at_startup {
+            config.run_at_startup = true;
+            config.save_to_file(&config_path);
+        }
+    }
 
     // Initial check of WAV files in zikr_audio
     let audio_files = get_audio_files();

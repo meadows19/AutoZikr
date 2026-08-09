@@ -101,6 +101,17 @@ pub fn set_run_at_startup(enabled: bool) -> Result<(), String> {
     }
 }
 
+pub fn is_run_at_startup_enabled() -> bool {
+    if let Ok(home) = std::env::var("HOME") {
+        let plist_path = std::path::PathBuf::from(home)
+            .join("Library")
+            .join("LaunchAgents")
+            .join("com.meadows19.autozikr.plist");
+        return plist_path.exists();
+    }
+    false
+}
+
 pub struct SingleInstanceHandle {
     _file: fs::File,
 }
@@ -227,6 +238,13 @@ pub fn run_macos_app() {
     };
     let config_path = config_dir.join("config.ini");
     let mut config = AppConfig::load_from_file(&config_path);
+
+    if is_run_at_startup_enabled() {
+        if !config.run_at_startup {
+            config.run_at_startup = true;
+            config.save_to_file(&config_path);
+        }
+    }
 
     if config.first_launch {
         config.first_launch = false;

@@ -1739,6 +1739,40 @@ impl GuiContext {
     }
 }
 
+pub fn is_run_at_startup_enabled() -> bool {
+    unsafe {
+        use windows::Win32::System::Registry::{
+            RegOpenKeyExW, RegQueryValueExW, HKEY_CURRENT_USER, KEY_READ,
+        };
+        let subkey = w!("Software\\Microsoft\\Windows\\CurrentVersion\\Run");
+        let mut hkey = windows::Win32::System::Registry::HKEY::default();
+        if RegOpenKeyExW(HKEY_CURRENT_USER, subkey, 0, KEY_READ, &mut hkey).is_ok() {
+            let value_name = w!("AutoZikr");
+            let mut len = 0u32;
+            let res = RegQueryValueExW(hkey, value_name, None, None, None, Some(&mut len));
+            let _ = windows::Win32::System::Registry::RegCloseKey(hkey);
+            if res.is_ok() {
+                return true;
+            }
+        }
+    }
+
+    if let Ok(appdata) = std::env::var("APPDATA") {
+        let shortcut_path = std::path::PathBuf::from(appdata)
+            .join("Microsoft")
+            .join("Windows")
+            .join("Start Menu")
+            .join("Programs")
+            .join("Startup")
+            .join("AutoZikr.lnk");
+        if shortcut_path.exists() {
+            return true;
+        }
+    }
+
+    false
+}
+
 pub fn set_run_at_startup(enabled: bool) -> Result<()> {
     unsafe {
         use windows::Win32::System::Registry::{
@@ -1781,6 +1815,19 @@ pub fn set_run_at_startup(enabled: bool) -> Result<()> {
             }
         } else {
             let res = RegDeleteValueW(hkey, value_name);
+            // Delete startup folder shortcut if present from installer
+            if let Ok(appdata) = std::env::var("APPDATA") {
+                let shortcut_path = std::path::PathBuf::from(appdata)
+                    .join("Microsoft")
+                    .join("Windows")
+                    .join("Start Menu")
+                    .join("Programs")
+                    .join("Startup")
+                    .join("AutoZikr.lnk");
+                if shortcut_path.exists() {
+                    let _ = std::fs::remove_file(shortcut_path);
+                }
+            }
             // Ignore if file not found (error code 2)
             if res.is_err() && res.0 != 2 {
                 let _ = RegCloseKey(hkey);
