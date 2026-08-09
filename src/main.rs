@@ -453,41 +453,5 @@ fn main() {
         Err(_) => return,
     };
     println!("AutoZikr starting on macOS...");
-    let mut exe_dir = std::env::current_exe().unwrap_or_default();
-    exe_dir.pop();
-    let config_path = exe_dir.join("config.ini");
-    let mut config = AppConfig::load_from_file(&config_path);
-
-    if config.first_launch {
-        config.first_launch = false;
-        config.save_to_file(&config_path);
-        let _ = std::process::Command::new("osascript")
-            .arg("-e")
-            .arg("display notification \"AutoZikr is running! Click the star icon in your top Menu Bar to open settings.\" with title \"AutoZikr\"")
-            .status();
-    }
-
-    let mut audio_files = get_audio_files();
-
-    loop {
-        thread::sleep(Duration::from_secs(1));
-        if config.enabled {
-            if !is_in_quiet_hours(&config) {
-                if !platform::is_audio_playing() {
-                    if !audio_files.is_empty() {
-                        let rand_idx = get_random_index(audio_files.len());
-                        let selected_file = audio_files[rand_idx].clone();
-                        if let Some(bytes) = builtin_audio::get_builtin_bytes(&selected_file) {
-                            platform::play_sound_bytes(bytes, config.volume);
-                        } else {
-                            let mut exe_path = std::env::current_exe().unwrap_or_default();
-                            exe_path.pop();
-                            let full_wav_path = exe_path.join("zikr_audio").join(&selected_file);
-                            platform::play_sound(&full_wav_path, config.volume);
-                        }
-                    }
-                }
-            }
-        }
-    }
+    platform::run_macos_app();
 }
