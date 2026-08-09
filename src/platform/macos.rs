@@ -250,7 +250,8 @@ pub fn run_macos_app() {
         .build()
         .unwrap();
 
-    use tao::window::{WindowBuilder, LogicalSize};
+    use tao::window::WindowBuilder;
+    use tao::dpi::LogicalSize;
     use wry::WebViewBuilder;
 
     let window = WindowBuilder::new()
@@ -376,7 +377,7 @@ pub fn run_macos_app() {
     });
 }
 
-fn generate_control_panel_html(config: &AppConfig) -> String {
+fn generate_control_panel_html(config: &crate::config::AppConfig) -> String {
     format!(r#"<!DOCTYPE html>
 <html>
 <head>
