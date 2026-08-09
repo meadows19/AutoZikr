@@ -225,6 +225,7 @@ pub fn run_macos_app() {
     let event_loop = EventLoopBuilder::new().build();
 
     let menu = Menu::new();
+    let item_settings = MenuItem::new("Open Settings (config.ini)...", true, None);
     let item_toggle = MenuItem::new(
         if config.enabled { "Pause Reminders" } else { "Resume Reminders" },
         true,
@@ -232,6 +233,8 @@ pub fn run_macos_app() {
     );
     let item_quit = MenuItem::new("Quit AutoZikr", true, None);
 
+    let _ = menu.append(&item_settings);
+    let _ = menu.append(&PredefinedMenuItem::separator());
     let _ = menu.append(&item_toggle);
     let _ = menu.append(&PredefinedMenuItem::separator());
     let _ = menu.append(&item_quit);
@@ -287,6 +290,7 @@ pub fn run_macos_app() {
         }
     });
 
+    let settings_id = item_settings.id().clone();
     let toggle_id = item_toggle.id().clone();
     let quit_id = item_quit.id().clone();
 
@@ -296,7 +300,12 @@ pub fn run_macos_app() {
         *control_flow = ControlFlow::WaitUntil(std::time::Instant::now() + Duration::from_millis(100));
 
         if let Ok(event) = menu_channel.try_recv() {
-            if event.id == toggle_id {
+            if event.id == settings_id {
+                let _ = Command::new("open")
+                    .arg("-e")
+                    .arg(&config_path)
+                    .status();
+            } else if event.id == toggle_id {
                 let mut cfg = config_arc.lock().unwrap();
                 cfg.enabled = !cfg.enabled;
                 cfg.save_to_file(&config_path);
