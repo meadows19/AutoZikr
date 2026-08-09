@@ -2084,3 +2084,117 @@ pub fn is_system_dark_mode() -> bool {
     }
     true // fallback to Dark Theme
 }
+
+/// Displays a custom Direct2D/GDI first-run notification flyout window near the system tray.
+/// Immune to Windows Focus Assist / Do Not Disturb mode.
+pub fn show_first_run_flyout(hinstance: windows::Win32::Foundation::HINSTANCE) {
+    unsafe {
+        use windows::Win32::UI::WindowsAndMessaging::{
+            CreateWindowExW, RegisterClassW, ShowWindow, SetTimer, KillTimer,
+            WNDCLASSW, CS_HREDRAW, CS_VREDRAW, WS_POPUP, WS_EX_TOPMOST, WS_EX_TOOLWINDOW,
+            SW_SHOWNOACTIVATE, SystemParametersInfoW, SPI_GETWORKAREA, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS,
+            WM_TIMER, WM_LBUTTONDOWN, DestroyWindow,
+        };
+
+        let mut work_area = RECT::default();
+        let _ = SystemParametersInfoW(
+            SPI_GETWORKAREA,
+            0,
+            Some(&mut work_area as *mut _ as *mut _),
+            SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS(0),
+        );
+
+        let flyout_w = 360;
+        let flyout_h = 110;
+        let x = (work_area.right - flyout_w - 16).max(10);
+        let y = (work_area.bottom - flyout_h - 16).max(10);
+
+        let class_name = w!("AutoZikrFlyoutClass");
+
+        unsafe extern "system" fn flyout_wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+            match msg {
+                WM_CREATE => {
+                    SetTimer(hwnd, 1, 10000, None); // Auto dismiss after 10 seconds
+                    LRESULT(0)
+                }
+                WM_TIMER | WM_LBUTTONDOWN => {
+                    KillTimer(hwnd, 1);
+                    let _ = DestroyWindow(hwnd);
+                    LRESULT(0)
+                }
+                WM_PAINT => {
+                    let mut ps = PAINTSTRUCT::default();
+                    let _hdc = BeginPaint(hwnd, &mut ps);
+
+                    let mut rect = RECT::default();
+                    GetClientRect(hwnd, &mut rect);
+
+                    use windows::Win32::Graphics::Gdi::{
+                        CreateSolidBrush, FillRect, FrameRect, SetBkMode, SetTextColor, TextOutW, TRANSPARENT
+                    };
+                    let bg_brush = CreateSolidBrush(windows::Win32::Foundation::COLORREF(0x003B291E)); // #1E293B (BGR)
+                    let border_brush = CreateSolidBrush(windows::Win32::Foundation::COLORREF(0x0081B910)); // #10B981 (BGR)
+
+                    FillRect(_hdc, &rect, bg_brush);
+                    FrameRect(_hdc, &rect, border_brush);
+
+                    SetBkMode(_hdc, TRANSPARENT);
+                    
+                    SetTextColor(_hdc, windows::Win32::Foundation::COLORREF(0x0081B910)); // #10B981
+                    let title = w!("AutoZikr is Running!");
+                    TextOutW(_hdc, 16, 14, title.as_ptr(), title.len() as i32);
+
+                    SetTextColor(_hdc, windows::Win32::Foundation::COLORREF(0x00FCFAF8)); // #F8FAFC
+                    let msg1 = w!("Click the star icon (or ^ overflow arrow)");
+                    TextOutW(_hdc, 16, 40, msg1.as_ptr(), msg1.len() as i32);
+
+                    let msg2 = w!("near your clock to open settings.");
+                    TextOutW(_hdc, 16, 60, msg2.as_ptr(), msg2.len() as i32);
+
+                    SetTextColor(_hdc, windows::Win32::Foundation::COLORREF(0x0098A394)); // #94A3B8
+                    let btn_text = w!("[ Click to Dismiss ]");
+                    TextOutW(_hdc, 210, 82, btn_text.as_ptr(), btn_text.len() as i32);
+
+                    let _ = windows::Win32::Graphics::Gdi::DeleteObject(bg_brush);
+                    let _ = windows::Win32::Graphics::Gdi::DeleteObject(border_brush);
+
+                    EndPaint(hwnd, &ps);
+                    LRESULT(0)
+                }
+                WM_DESTROY => {
+                    LRESULT(0)
+                }
+                _ => DefWindowProcW(hwnd, msg, wparam, lparam),
+            }
+        }
+
+        let wc = WNDCLASSW {
+            style: CS_HREDRAW | CS_VREDRAW,
+            lpfnWndProc: Some(flyout_wnd_proc),
+            hInstance: hinstance.into(),
+            hCursor: LoadCursorW(None, IDC_ARROW).unwrap_or(HCURSOR::default()),
+            lpszClassName: class_name,
+            ..Default::default()
+        };
+        RegisterClassW(&wc);
+
+        let hwnd_flyout = CreateWindowExW(
+            WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
+            class_name,
+            w!("AutoZikr Notification"),
+            WS_POPUP,
+            x,
+            y,
+            flyout_w,
+            flyout_h,
+            None,
+            None,
+            hinstance,
+            None,
+        );
+
+        if let Ok(h) = hwnd_flyout {
+            ShowWindow(h, SW_SHOWNOACTIVATE);
+        }
+    }
+}
