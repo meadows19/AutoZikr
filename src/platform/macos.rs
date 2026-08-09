@@ -203,8 +203,7 @@ fn dist_to_segment_sq(px: f32, py: f32, x1: f32, y1: f32, x2: f32, y2: f32) -> f
 pub fn run_macos_app() {
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
-    use tray_icon::{TrayIconBuilder, Icon};
-    use muda::{Menu, MenuItem, PredefinedMenuItem};
+    use tray_icon::{TrayIconBuilder, Icon, TrayIconEvent};
     use tao::event_loop::{EventLoopBuilder, ControlFlow};
     use crate::config::AppConfig;
 
@@ -227,8 +226,6 @@ pub fn run_macos_app() {
     let is_dark = is_system_dark_mode();
     let icon_bytes = create_star_rgba_bytes(32, is_dark);
     let icon = Icon::from_rgba(icon_bytes, 32, 32).unwrap();
-
-    use tray_icon::{TrayIconBuilder, Icon, TrayIconEvent};
 
     let _tray_icon = TrayIconBuilder::new()
         .with_tooltip("AutoZikr")
@@ -352,7 +349,7 @@ pub fn run_macos_app() {
 
         if let Ok(t_event) = tray_channel.try_recv() {
             if let TrayIconEvent::Click { .. } = t_event {
-                let is_vis = window.is_visible().unwrap_or(false);
+                let is_vis = window.is_visible();
                 if is_vis {
                     window.set_visible(false);
                 } else {
