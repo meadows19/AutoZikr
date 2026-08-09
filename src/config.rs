@@ -13,7 +13,7 @@ pub struct QuietHoursRule {
 }
 
 impl QuietHoursRule {
-    pub fn to_string(&self) -> String {
+    pub fn serialize(&self) -> String {
         let days_str: String = self.days.iter().map(|&d| if d { '1' } else { '0' }).collect();
         format!(
             "{},{},{},{},{},{}",

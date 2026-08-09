@@ -1393,7 +1393,7 @@ impl GuiContext {
                         // Check Rule Enable toggle (x: 50..94, y: y_offset + 15..y_offset + 37)
                         if fx >= 50.0 && fx <= 94.0 && clicked_fy >= y_offset + 15.0 && clicked_fy <= y_offset + 37.0 {
                             state.quiet_hours_rules[i].enabled = !state.quiet_hours_rules[i].enabled;
-                            let rules_str: Vec<String> = state.quiet_hours_rules.iter().map(|r| r.to_string()).collect();
+                            let rules_str: Vec<String> = state.quiet_hours_rules.iter().map(|r| r.serialize()).collect();
                             state.config.quiet_hours_rules = rules_str.join(";");
                             state.is_dirty = true;
                             unsafe { InvalidateRect(self.hwnd, None, true) };
@@ -1411,7 +1411,7 @@ impl GuiContext {
                         // Check Delete rule button (x: 350..375, y: y_offset + 10..y_offset + 35)
                         if fx >= 350.0 && fx <= 375.0 && clicked_fy >= y_offset + 10.0 && clicked_fy <= y_offset + 35.0 {
                             state.quiet_hours_rules.remove(i);
-                            let rules_str: Vec<String> = state.quiet_hours_rules.iter().map(|r| r.to_string()).collect();
+                            let rules_str: Vec<String> = state.quiet_hours_rules.iter().map(|r| r.serialize()).collect();
                             state.config.quiet_hours_rules = rules_str.join(";");
                             state.is_dirty = true;
                             unsafe { InvalidateRect(self.hwnd, None, true) };
@@ -1426,7 +1426,7 @@ impl GuiContext {
                                 let dist = ((fx - cx_day).powi(2) + (clicked_fy - cy_day).powi(2)).sqrt();
                                 if dist <= 14.0 {
                                     state.quiet_hours_rules[i].days[d] = !state.quiet_hours_rules[i].days[d];
-                                    let rules_str: Vec<String> = state.quiet_hours_rules.iter().map(|r| r.to_string()).collect();
+                                    let rules_str: Vec<String> = state.quiet_hours_rules.iter().map(|r| r.serialize()).collect();
                                     state.config.quiet_hours_rules = rules_str.join(";");
                                     state.is_dirty = true;
                                     unsafe { InvalidateRect(self.hwnd, None, true) };
@@ -1461,7 +1461,7 @@ impl GuiContext {
                             let r = &mut state.quiet_hours_rules[i];
                             std::mem::swap(&mut r.start_hour, &mut r.end_hour);
 
-                            let rules_str: Vec<String> = state.quiet_hours_rules.iter().map(|r| r.to_string()).collect();
+                            let rules_str: Vec<String> = state.quiet_hours_rules.iter().map(|r| r.serialize()).collect();
                             state.config.quiet_hours_rules = rules_str.join(";");
                             state.is_dirty = true;
                             unsafe { InvalidateRect(self.hwnd, None, true) };
@@ -1480,7 +1480,7 @@ impl GuiContext {
                             days: [true; 7],
                             overnight: true,
                         });
-                        let rules_str: Vec<String> = state.quiet_hours_rules.iter().map(|r| r.to_string()).collect();
+                        let rules_str: Vec<String> = state.quiet_hours_rules.iter().map(|r| r.serialize()).collect();
                         state.config.quiet_hours_rules = rules_str.join(";");
                         state.is_dirty = true;
                         unsafe { InvalidateRect(self.hwnd, None, true) };
@@ -1593,7 +1593,7 @@ impl GuiContext {
                 r.overnight = false;
             }
 
-            let rules_str: Vec<String> = state.quiet_hours_rules.iter().map(|r| r.to_string()).collect();
+            let rules_str: Vec<String> = state.quiet_hours_rules.iter().map(|r| r.serialize()).collect();
             state.config.quiet_hours_rules = rules_str.join(";");
             state.is_dirty = true;
             unsafe { InvalidateRect(self.hwnd, None, true) };
@@ -1729,7 +1729,7 @@ impl GuiContext {
                         }
                         _ => {}
                     }
-                    let rules_str: Vec<String> = state.quiet_hours_rules.iter().map(|r| r.to_string()).collect();
+                    let rules_str: Vec<String> = state.quiet_hours_rules.iter().map(|r| r.serialize()).collect();
                     state.config.quiet_hours_rules = rules_str.join(";");
                     state.is_dirty = true;
                     let _ = InvalidateRect(self.hwnd, None, true);

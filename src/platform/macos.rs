@@ -3,6 +3,7 @@ use std::fs;
 use std::process::Command;
 use rodio::{Decoder, OutputStream, Sink};
 use std::io::Cursor;
+use std::path::PathBuf;
 
 /// Senses if macOS is currently using Dark Mode via AppleInterfaceStyle defaults.
 pub fn is_system_dark_mode() -> bool {
@@ -209,7 +210,22 @@ pub fn run_macos_app() {
 
     let mut exe_dir = std::env::current_exe().unwrap_or_default();
     exe_dir.pop();
-    let config_path = exe_dir.join("config.ini");
+
+    // On macOS .app bundles, store config in ~/Library/Application Support/AutoZikr/
+    // For non-bundled executables, use the executable's directory (portable mode)
+    let config_dir = if exe_dir.to_string_lossy().contains(".app/Contents/MacOS") {
+        match std::env::var("HOME") {
+            Ok(home) => {
+                let dir = PathBuf::from(home).join("Library").join("Application Support").join("AutoZikr");
+                let _ = fs::create_dir_all(&dir);
+                dir
+            }
+            Err(_) => exe_dir.clone(),
+        }
+    } else {
+        exe_dir.clone()
+    };
+    let config_path = config_dir.join("config.ini");
     let mut config = AppConfig::load_from_file(&config_path);
 
     if config.first_launch {
@@ -250,7 +266,7 @@ pub fn run_macos_app() {
     );
 
     let config_arc = Arc::new(Mutex::new(config.clone()));
-    let config_clone = Arc::clone(&config_arc);
+    let config_timer = Arc::clone(&config_arc);
 
     let html_content = generate_control_panel_html(&config);
 
@@ -274,6 +290,11 @@ pub fn run_macos_app() {
                     let vol = config_ipc.lock().unwrap().volume;
                     if let Some(bytes) = crate::builtin_audio::get_builtin_bytes(&selected) {
                         play_sound_bytes(bytes, vol);
+                    } else {
+                        let mut exe_path = std::env::current_exe().unwrap_or_default();
+                        exe_path.pop();
+                        let full_wav_path = exe_path.join("zikr_audio").join(&selected);
+                        play_sound(&full_wav_path, vol);
                     }
                 }
             } else if msg.starts_with("save:") {
@@ -303,15 +324,17 @@ pub fn run_macos_app() {
         .build(&window)
         .unwrap();
 
+    // Keep _webview alive for the duration of the app — dropping it destroys the WebView
+    let _webview = webview;
+
     std::thread::spawn(move || {
-        let mut audio_files = crate::get_audio_files();
-        let mut cfg = config_clone.lock().unwrap().clone();
+        let mut cfg = config_timer.lock().unwrap().clone();
         let mut remaining_seconds = crate::get_seconds_until_next_boundary(cfg.interval_mins);
 
         loop {
             std::thread::sleep(Duration::from_secs(1));
             
-            if let Ok(current) = config_clone.lock() {
+            if let Ok(current) = config_timer.lock() {
                 cfg = current.clone();
             }
 
@@ -322,7 +345,9 @@ pub fn run_macos_app() {
             if remaining_seconds == 0 {
                 remaining_seconds = cfg.interval_mins * 60;
                 
-                if cfg.enabled && !crate::is_in_quiet_hours(&cfg) {
+                if cfg.enabled && !crate::is_in_quiet_hours(&cfg) && !is_audio_playing() {
+                    // Refresh audio file list right before playback
+                    let audio_files = crate::get_audio_files();
                     if !audio_files.is_empty() {
                         let rand_idx = crate::get_random_index(audio_files.len());
                         let selected_file = audio_files[rand_idx].clone();

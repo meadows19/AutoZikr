@@ -73,18 +73,18 @@ pub fn get_local_time() -> SystemTime {
 #[cfg(target_os = "macos")]
 pub fn get_local_time() -> SystemTime {
     use std::time::{SystemTime as StdSystemTime, UNIX_EPOCH};
-    let now = StdSystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
-    let sec = (now % 60) as u16;
-    let min = ((now / 60) % 60) as u16;
-    let hour = ((now / 3600) % 24) as u16;
+    let now_secs = StdSystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+    let mut tm: libc::tm = unsafe { std::mem::zeroed() };
+    unsafe { libc::localtime_r(&now_secs, &mut tm) };
     SystemTime {
-        year: 2026,
-        month: 8,
-        day_of_week: 6,
-        day: 8,
-        hour,
-        minute: min,
-        second: sec,
+        year: (tm.tm_year + 1900) as u16,
+        month: (tm.tm_mon + 1) as u16,
+        // Windows SYSTEMTIME: 0=Sunday, 6=Saturday. libc tm_wday: 0=Sunday, 6=Saturday. Same convention.
+        day_of_week: tm.tm_wday as u16,
+        day: tm.tm_mday as u16,
+        hour: tm.tm_hour as u16,
+        minute: tm.tm_min as u16,
+        second: tm.tm_sec as u16,
         milliseconds: 0,
     }
 }
@@ -137,16 +137,7 @@ pub fn get_audio_files() -> Vec<String> {
     files
 }
 
-fn parse_time(s: &str) -> Option<(u32, u32)> {
-    let (h_str, m_str) = s.split_once(':')?;
-    let h = h_str.parse::<u32>().ok()?;
-    let m = m_str.parse::<u32>().ok()?;
-    if h < 24 && m < 60 {
-        Some((h, m))
-    } else {
-        None
-    }
-}
+
 
 pub fn is_in_quiet_hours(config: &AppConfig) -> bool {
     if !config.quiet_hours_enabled {
@@ -196,22 +187,27 @@ fn get_random_index(max: usize) -> usize {
     if max == 0 {
         return 0;
     }
+    // Use nanosecond-precision timestamp for good entropy on all platforms
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .subsec_nanos() as usize;
     let st = get_local_time();
-    // Simple LCG pseudo-random generator seeded with current time
-    let seed = (st.milliseconds as usize) * 1000 + (st.second as usize) * 100 + (st.minute as usize);
-    let rand = (seed * 1103515245 + 12345) & 0x7fffffff;
+    let seed = nanos.wrapping_add((st.second as usize) * 100).wrapping_add(st.minute as usize);
+    let rand = (seed.wrapping_mul(1103515245).wrapping_add(12345)) & 0x7fffffff;
     rand % max
 }
 
 pub fn get_seconds_until_next_boundary(interval_mins: u32) -> u32 {
     let st = get_local_time();
-    let current_seconds_past_hour = (st.minute as u32) * 60 + (st.second as u32);
+    // Use seconds since midnight so intervals > 60 minutes work correctly
+    let current_seconds_since_midnight = (st.hour as u32) * 3600 + (st.minute as u32) * 60 + (st.second as u32);
     let interval_seconds = interval_mins * 60;
     
-    // Calculate the next multiple of interval_seconds past the hour
-    let next_reminder = ((current_seconds_past_hour / interval_seconds) + 1) * interval_seconds;
+    // Calculate the next multiple of interval_seconds since midnight
+    let next_reminder = ((current_seconds_since_midnight / interval_seconds) + 1) * interval_seconds;
     
-    let remaining = next_reminder - current_seconds_past_hour;
+    let remaining = next_reminder - current_seconds_since_midnight;
     if remaining == 0 {
         interval_seconds
     } else {
