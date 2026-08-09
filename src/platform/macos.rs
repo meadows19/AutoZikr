@@ -363,7 +363,6 @@ pub fn run_macos_app() {
         }
     });
 }
-}
 
 fn generate_control_panel_html(config: &crate::config::AppConfig) -> String {
     format!(r#"<!DOCTYPE html>
