@@ -1,7 +1,7 @@
 use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{HWND, POINT};
 use windows::Win32::UI::Shell::{
-    NOTIFYICONDATAW, Shell_NotifyIconW, NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NIM_MODIFY,
+    NOTIFYICONDATAW, Shell_NotifyIconW, NIF_ICON, NIF_MESSAGE, NIF_TIP, NIF_INFO, NIIF_INFO, NIM_ADD, NIM_DELETE, NIM_MODIFY,
 };
 use windows::Win32::Foundation::LPARAM;
 use windows::Win32::UI::WindowsAndMessaging::{
@@ -10,6 +10,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 
 pub const WM_TRAY_ICON: u32 = WM_USER + 1;
+pub const WM_ALREADY_RUNNING: u32 = WM_USER + 100;
 pub const TRAY_ICON_ID: u32 = 1;
 
 pub const ID_TRAY_OPEN: u32 = 1001;
@@ -176,5 +177,33 @@ pub fn update_tray_icon_theme(hwnd: HWND) {
             ..Default::default()
         };
         Shell_NotifyIconW(NIM_MODIFY, &nid);
+    }
+}
+
+/// Displays a system notification balloon near the system tray icon
+pub fn show_tray_notification(hwnd: HWND, title: &str, message: &str) {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+
+    let mut nid = NOTIFYICONDATAW {
+        cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
+        hWnd: hwnd,
+        uID: TRAY_ICON_ID,
+        uFlags: NIF_INFO,
+        dwInfoFlags: NIIF_INFO,
+        ..Default::default()
+    };
+
+    let title_u16: Vec<u16> = OsStr::new(title).encode_wide().chain(std::iter::once(0)).collect();
+    let msg_u16: Vec<u16> = OsStr::new(message).encode_wide().chain(std::iter::once(0)).collect();
+
+    let title_len = title_u16.len().min(nid.szInfoTitle.len() - 1);
+    nid.szInfoTitle[..title_len].copy_from_slice(&title_u16[..title_len]);
+
+    let msg_len = msg_u16.len().min(nid.szInfo.len() - 1);
+    nid.szInfo[..msg_len].copy_from_slice(&msg_u16[..msg_len]);
+
+    unsafe {
+        let _ = Shell_NotifyIconW(NIM_MODIFY, &nid);
     }
 }

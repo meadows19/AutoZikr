@@ -219,8 +219,55 @@ pub fn get_seconds_until_next_boundary(interval_mins: u32) -> u32 {
     }
 }
 
+pub struct SingleInstanceHandle(#[cfg(target_os = "windows")] windows::Win32::Foundation::HANDLE);
+
+#[cfg(target_os = "windows")]
+pub fn check_single_instance() -> Result<SingleInstanceHandle, ()> {
+    unsafe {
+        use windows::Win32::Foundation::{ERROR_ALREADY_EXISTS, GetLastError};
+        use windows::Win32::System::Threading::CreateMutexW;
+        use windows::Win32::UI::WindowsAndMessaging::{
+            FindWindowW, PostMessageW, MessageBoxW, MB_OK, MB_ICONINFORMATION,
+        };
+
+        let mutex_name = w!("Local\\AutoZikrSingleInstanceMutex");
+        let mutex = CreateMutexW(None, true, mutex_name);
+        if let Ok(handle) = mutex {
+            if GetLastError() == ERROR_ALREADY_EXISTS {
+                if let Ok(hwnd) = FindWindowW(w!("AutoZikrWindowClass"), None) {
+                    if !hwnd.0.is_null() {
+                        let _ = PostMessageW(hwnd, crate::tray::WM_ALREADY_RUNNING, WPARAM(0), LPARAM(0));
+                    } else {
+                        let _ = MessageBoxW(
+                            None,
+                            w!("AutoZikr is already running in your system tray."),
+                            w!("AutoZikr"),
+                            MB_OK | MB_ICONINFORMATION,
+                        );
+                    }
+                } else {
+                    let _ = MessageBoxW(
+                        None,
+                        w!("AutoZikr is already running in your system tray."),
+                        w!("AutoZikr"),
+                        MB_OK | MB_ICONINFORMATION,
+                    );
+                }
+                return Err(());
+            }
+            return Ok(SingleInstanceHandle(handle));
+        }
+    }
+    Err(())
+}
+
 #[cfg(target_os = "windows")]
 fn main() {
+    let _instance_guard = match check_single_instance() {
+        Ok(h) => h,
+        Err(_) => return,
+    };
+
     // 1. Initialize portable config path
     let mut exe_dir = std::env::current_exe().unwrap_or_default();
     exe_dir.pop();
@@ -385,6 +432,10 @@ fn main() {
 
 #[cfg(target_os = "macos")]
 fn main() {
+    let _instance_guard = match platform::check_single_instance() {
+        Ok(h) => h,
+        Err(_) => return,
+    };
     println!("AutoZikr starting on macOS...");
     let mut exe_dir = std::env::current_exe().unwrap_or_default();
     exe_dir.pop();

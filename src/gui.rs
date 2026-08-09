@@ -1810,6 +1810,14 @@ pub unsafe extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lpa
             }
             LRESULT(0)
         }
+        crate::tray::WM_ALREADY_RUNNING => {
+            crate::tray::show_tray_notification(
+                hwnd,
+                "AutoZikr",
+                "AutoZikr is already running in your system tray.",
+            );
+            LRESULT(0)
+        }
         windows::Win32::UI::WindowsAndMessaging::WM_COMMAND => {
             let ctx_ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut GuiContext;
             if !ctx_ptr.is_null() {

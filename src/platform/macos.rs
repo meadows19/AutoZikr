@@ -99,3 +99,31 @@ pub fn set_run_at_startup(enabled: bool) -> Result<(), String> {
         Ok(())
     }
 }
+
+pub struct SingleInstanceHandle {
+    _file: fs::File,
+}
+
+/// Prevents duplicate instances of AutoZikr running on macOS.
+pub fn check_single_instance() -> Result<SingleInstanceHandle, ()> {
+    let lock_path = match std::env::var("HOME") {
+        Ok(h) => format!("{}/.autozikr.lock", h),
+        Err(_) => "/tmp/autozikr.lock".to_string(),
+    };
+
+    if let Ok(file) = fs::File::create(&lock_path) {
+        use std::os::unix::io::AsRawFd;
+        let fd = file.as_raw_fd();
+        let res = unsafe { libc::flock(fd, libc::LOCK_EX | libc::LOCK_NB) };
+        if res == 0 {
+            return Ok(SingleInstanceHandle { _file: file });
+        }
+    }
+
+    let _ = Command::new("osascript")
+        .arg("-e")
+        .arg("display notification \"AutoZikr is already running in your Menu Bar.\" with title \"AutoZikr\"")
+        .status();
+
+    Err(())
+}
