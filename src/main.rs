@@ -305,6 +305,8 @@ fn main() {
         scrollbar_dragging: false,
         drag_start_y: 0.0,
         drag_start_scroll: 0,
+        lid_closed: false,
+        display_off: false,
     }));
 
     // 3. Register window class and create GUI window
@@ -396,7 +398,7 @@ fn main() {
                     state.is_dirty = false;
                 }
 
-                if state.config.enabled {
+                if state.config.enabled && !state.lid_closed && !state.display_off {
                     let in_quiet = is_in_quiet_hours(&state.config);
 
                     if !in_quiet {

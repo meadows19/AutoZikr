@@ -62,6 +62,19 @@ pub fn is_audio_playing() -> bool {
     false
 }
 
+/// Checks if the laptop lid is currently closed on macOS.
+pub fn is_lid_closed() -> bool {
+    let output = Command::new("ioreg")
+        .args(["-r", "-k", "AppleClamshellState"])
+        .output();
+    if let Ok(out) = output {
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        stdout.contains("\"AppleClamshellState\" = Yes")
+    } else {
+        false
+    }
+}
+
 /// Configures macOS LaunchAgent for auto-start on user login.
 pub fn set_run_at_startup(enabled: bool) -> Result<(), String> {
     let mut home = match std::env::var("HOME") {
@@ -363,7 +376,7 @@ pub fn run_macos_app() {
             if remaining_seconds == 0 {
                 remaining_seconds = cfg.interval_mins * 60;
                 
-                if cfg.enabled && !crate::is_in_quiet_hours(&cfg) && !is_audio_playing() {
+                if cfg.enabled && !crate::is_in_quiet_hours(&cfg) && !is_audio_playing() && !is_lid_closed() {
                     // Refresh audio file list right before playback
                     let audio_files = crate::get_audio_files();
                     if !audio_files.is_empty() {

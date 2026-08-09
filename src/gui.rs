@@ -55,6 +55,10 @@ pub struct AppState {
     pub scrollbar_dragging: bool,
     pub drag_start_y: f32,
     pub drag_start_scroll: i32,
+
+    // Power & Lid state
+    pub lid_closed: bool,
+    pub display_off: bool,
 }
 
 pub struct GuiContext {
@@ -1840,9 +1844,48 @@ pub fn set_run_at_startup(enabled: bool) -> Result<()> {
     }
 }
 
+const WM_POWERBROADCAST: u32 = 0x0218;
+const PBT_POWERSETTINGCHANGE: usize = 0x8013;
+const DEVICE_NOTIFY_WINDOW_HANDLE: u32 = 0x00000000;
+
+const GUID_LIDSWITCH_STATE_CHANGE: windows::core::GUID = windows::core::GUID::from_u128(0xba3e0f4d_b817_4094_a2d1_d56379e6a0f3);
+const GUID_CONSOLE_DISPLAY_STATE: windows::core::GUID = windows::core::GUID::from_u128(0x6fe69556_704a_47a0_8f24_aa73d93c6c90);
+
+#[repr(C)]
+struct POWERSETTING_ACTION {
+    power_setting: windows::core::GUID,
+    data_length: u32,
+    data: [u8; 1],
+}
+
+#[cfg(target_os = "windows")]
+#[link(name = "user32")]
+extern "system" {
+    fn RegisterPowerSettingNotification(
+        hRecipient: windows::Win32::Foundation::HANDLE,
+        PowerSettingGuid: *const windows::core::GUID,
+        Flags: u32,
+    ) -> windows::Win32::Foundation::HANDLE;
+}
+
 // Global window callback
 pub unsafe extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     match msg {
+        WM_POWERBROADCAST => {
+            if wparam.0 == PBT_POWERSETTINGCHANGE && lparam.0 != 0 {
+                let ps = &*(lparam.0 as *const POWERSETTING_ACTION);
+                let ctx_ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut GuiContext;
+                if !ctx_ptr.is_null() {
+                    let mut state = (*ctx_ptr).state.lock().unwrap();
+                    if ps.power_setting == GUID_LIDSWITCH_STATE_CHANGE {
+                        state.lid_closed = ps.data[0] == 0;
+                    } else if ps.power_setting == GUID_CONSOLE_DISPLAY_STATE {
+                        state.display_off = ps.data[0] == 0;
+                    }
+                }
+            }
+            LRESULT(1)
+        }
         windows::Win32::UI::WindowsAndMessaging::WM_SETTINGCHANGE => {
             // Update tray icon dynamically
             crate::tray::update_tray_icon_theme(hwnd);
@@ -1898,6 +1941,18 @@ pub unsafe extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lpa
             let ctx_ptr = Box::into_raw(ctx);
             SetWindowLongPtrW(hwnd, GWLP_USERDATA, ctx_ptr as isize);
             
+            // Register for Lid Switch and Display State notifications
+            RegisterPowerSettingNotification(
+                windows::Win32::Foundation::HANDLE(hwnd.0),
+                &GUID_LIDSWITCH_STATE_CHANGE,
+                DEVICE_NOTIFY_WINDOW_HANDLE,
+            );
+            RegisterPowerSettingNotification(
+                windows::Win32::Foundation::HANDLE(hwnd.0),
+                &GUID_CONSOLE_DISPLAY_STATE,
+                DEVICE_NOTIFY_WINDOW_HANDLE,
+            );
+
             LRESULT(0)
         }
         WM_PAINT => {
