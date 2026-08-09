@@ -58,7 +58,7 @@ pub struct AppState {
 
     // Power & Lid state
     pub lid_closed: bool,
-    pub display_off: bool,
+    pub system_sleeping: bool,
 }
 
 pub struct GuiContext {
@@ -1845,11 +1845,13 @@ pub fn set_run_at_startup(enabled: bool) -> Result<()> {
 }
 
 const WM_POWERBROADCAST: u32 = 0x0218;
+const PBT_APMSUSPEND: usize = 0x0004;
+const PBT_APMRESUMESUSPEND: usize = 0x0007;
+const PBT_APMRESUMEAUTOMATIC: usize = 0x0012;
 const PBT_POWERSETTINGCHANGE: usize = 0x8013;
 const DEVICE_NOTIFY_WINDOW_HANDLE: u32 = 0x00000000;
 
 const GUID_LIDSWITCH_STATE_CHANGE: windows::core::GUID = windows::core::GUID::from_u128(0xba3e0f4d_b817_4094_a2d1_d56379e6a0f3);
-const GUID_CONSOLE_DISPLAY_STATE: windows::core::GUID = windows::core::GUID::from_u128(0x6fe69556_704a_47a0_8f24_aa73d93c6c90);
 
 #[repr(C)]
 struct POWERSETTING_ACTION {
@@ -1872,15 +1874,17 @@ extern "system" {
 pub unsafe extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     match msg {
         WM_POWERBROADCAST => {
-            if wparam.0 == PBT_POWERSETTINGCHANGE && lparam.0 != 0 {
-                let ps = &*(lparam.0 as *const POWERSETTING_ACTION);
-                let ctx_ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut GuiContext;
-                if !ctx_ptr.is_null() {
-                    let mut state = (*ctx_ptr).state.lock().unwrap();
+            let ctx_ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut GuiContext;
+            if !ctx_ptr.is_null() {
+                let mut state = (*ctx_ptr).state.lock().unwrap();
+                if wparam.0 == PBT_APMSUSPEND {
+                    state.system_sleeping = true;
+                } else if wparam.0 == PBT_APMRESUMESUSPEND || wparam.0 == PBT_APMRESUMEAUTOMATIC {
+                    state.system_sleeping = false;
+                } else if wparam.0 == PBT_POWERSETTINGCHANGE && lparam.0 != 0 {
+                    let ps = &*(lparam.0 as *const POWERSETTING_ACTION);
                     if ps.power_setting == GUID_LIDSWITCH_STATE_CHANGE {
                         state.lid_closed = ps.data[0] == 0;
-                    } else if ps.power_setting == GUID_CONSOLE_DISPLAY_STATE {
-                        state.display_off = ps.data[0] == 0;
                     }
                 }
             }
@@ -1941,15 +1945,10 @@ pub unsafe extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lpa
             let ctx_ptr = Box::into_raw(ctx);
             SetWindowLongPtrW(hwnd, GWLP_USERDATA, ctx_ptr as isize);
             
-            // Register for Lid Switch and Display State notifications
+            // Register for Lid Switch notifications
             RegisterPowerSettingNotification(
                 windows::Win32::Foundation::HANDLE(hwnd.0),
                 &GUID_LIDSWITCH_STATE_CHANGE,
-                DEVICE_NOTIFY_WINDOW_HANDLE,
-            );
-            RegisterPowerSettingNotification(
-                windows::Win32::Foundation::HANDLE(hwnd.0),
-                &GUID_CONSOLE_DISPLAY_STATE,
                 DEVICE_NOTIFY_WINDOW_HANDLE,
             );
 
