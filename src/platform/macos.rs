@@ -225,7 +225,7 @@ pub fn run_macos_app() {
     let event_loop = EventLoopBuilder::new().build();
 
     let menu = Menu::new();
-    let item_settings = MenuItem::new("Open Settings (config.ini)...", true, None);
+    let item_open = MenuItem::new("Open Control Panel...", true, None);
     let item_toggle = MenuItem::new(
         if config.enabled { "Pause Reminders" } else { "Resume Reminders" },
         true,
@@ -233,7 +233,7 @@ pub fn run_macos_app() {
     );
     let item_quit = MenuItem::new("Quit AutoZikr", true, None);
 
-    let _ = menu.append(&item_settings);
+    let _ = menu.append(&item_open);
     let _ = menu.append(&PredefinedMenuItem::separator());
     let _ = menu.append(&item_toggle);
     let _ = menu.append(&PredefinedMenuItem::separator());
@@ -250,8 +250,65 @@ pub fn run_macos_app() {
         .build()
         .unwrap();
 
-    let config_arc = Arc::new(Mutex::new(config));
+    use tao::window::{WindowBuilder, LogicalSize};
+    use wry::WebViewBuilder;
+
+    let window = WindowBuilder::new()
+        .with_title("AutoZikr Control Panel")
+        .with_inner_size(LogicalSize::new(420.0, 640.0))
+        .with_resizable(false)
+        .with_visible(true)
+        .build(&event_loop)
+        .unwrap();
+
+    let config_arc = Arc::new(Mutex::new(config.clone()));
     let config_clone = Arc::clone(&config_arc);
+
+    let html_content = generate_control_panel_html(&config);
+
+    let config_ipc = Arc::clone(&config_arc);
+    let cfg_path_ipc = config_path.clone();
+
+    let webview = WebViewBuilder::new()
+        .with_html(html_content)
+        .with_ipc_handler(move |req| {
+            let msg = req.body();
+            if msg == "test_audio" {
+                let audio_files = crate::get_audio_files();
+                if !audio_files.is_empty() {
+                    let rand_idx = crate::get_random_index(audio_files.len());
+                    let selected = audio_files[rand_idx].clone();
+                    let vol = config_ipc.lock().unwrap().volume;
+                    if let Some(bytes) = crate::builtin_audio::get_builtin_bytes(&selected) {
+                        play_sound_bytes(bytes, vol);
+                    }
+                }
+            } else if msg.starts_with("save:") {
+                let body = &msg[5..];
+                let mut cfg = config_ipc.lock().unwrap();
+                for pair in body.split(';') {
+                    if let Some((k, v)) = pair.split_once('=') {
+                        match k {
+                            "enabled" => cfg.enabled = v.parse().unwrap_or(true),
+                            "interval_mins" => cfg.interval_mins = v.parse().unwrap_or(30),
+                            "volume" => cfg.volume = v.parse().unwrap_or(80),
+                            "quiet_hours_enabled" => cfg.quiet_hours_enabled = v.parse().unwrap_or(false),
+                            "run_at_startup" => {
+                                let st = v.parse().unwrap_or(false);
+                                if cfg.run_at_startup != st {
+                                    cfg.run_at_startup = st;
+                                    let _ = set_run_at_startup(st);
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                cfg.save_to_file(&cfg_path_ipc);
+            }
+        })
+        .build(&window)
+        .unwrap();
 
     std::thread::spawn(move || {
         let mut audio_files = crate::get_audio_files();
@@ -290,29 +347,201 @@ pub fn run_macos_app() {
         }
     });
 
-    let settings_id = item_settings.id().clone();
+    let open_id = item_open.id().clone();
     let toggle_id = item_toggle.id().clone();
     let quit_id = item_quit.id().clone();
 
     let menu_channel = muda::MenuEvent::receiver();
 
-    event_loop.run(move |_event, _, control_flow| {
+    event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::WaitUntil(std::time::Instant::now() + Duration::from_millis(100));
 
-        if let Ok(event) = menu_channel.try_recv() {
-            if event.id == settings_id {
-                let _ = Command::new("open")
-                    .arg("-e")
-                    .arg(&config_path)
-                    .status();
-            } else if event.id == toggle_id {
+        if let tao::event::Event::WindowEvent { event: tao::event::WindowEvent::CloseRequested, .. } = event {
+            window.set_visible(false);
+        }
+
+        if let Ok(m_event) = menu_channel.try_recv() {
+            if m_event.id == open_id {
+                window.set_visible(true);
+                window.set_focus();
+            } else if m_event.id == toggle_id {
                 let mut cfg = config_arc.lock().unwrap();
                 cfg.enabled = !cfg.enabled;
                 cfg.save_to_file(&config_path);
                 item_toggle.set_text(if cfg.enabled { "Pause Reminders" } else { "Resume Reminders" });
-            } else if event.id == quit_id {
+            } else if m_event.id == quit_id {
                 *control_flow = ControlFlow::Exit;
             }
         }
     });
+}
+
+fn generate_control_panel_html(config: &AppConfig) -> String {
+    format!(r#"<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  body {{
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: #0F172A;
+    color: #F8FAFC;
+    margin: 0;
+    padding: 20px;
+    user-select: none;
+    -webkit-user-select: none;
+  }}
+  .card {{
+    background-color: #1E293B;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+  }}
+  .header {{
+    text-align: center;
+    margin-bottom: 20px;
+  }}
+  .title {{
+    font-size: 22px;
+    font-weight: 700;
+    color: #10B981;
+    margin: 0 0 4px 0;
+  }}
+  .subtitle {{
+    font-size: 13px;
+    color: #94A3B8;
+    margin: 0;
+  }}
+  .row {{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }}
+  .label {{
+    font-size: 14px;
+    font-weight: 500;
+  }}
+  .val-badge {{
+    font-size: 13px;
+    color: #10B981;
+    font-weight: 600;
+  }}
+  input[type="range"] {{
+    width: 100%;
+    margin-top: 10px;
+    accent-color: #10B981;
+  }}
+  .switch {{
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+  }}
+  .switch input {{ opacity: 0; width: 0; height: 0; }}
+  .slider {{
+    position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+    background-color: #475569; transition: .3s; border-radius: 24px;
+  }}
+  .slider:before {{
+    position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px;
+    background-color: white; transition: .3s; border-radius: 50%;
+  }}
+  input:checked + .slider {{ background-color: #10B981; }}
+  input:checked + .slider:before {{ transform: translateX(20px); }}
+  .btn {{
+    background-color: #10B981;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+  }}
+  .btn:hover {{ background-color: #059669; }}
+  .btn-sec {{
+    background-color: #334155;
+    margin-top: 12px;
+  }}
+  .btn-sec:hover {{ background-color: #475569; }}
+</style>
+</head>
+<body>
+  <div class="header">
+    <div style="font-size: 36px; margin-bottom: 4px;">☪️</div>
+    <h1 class="title">AutoZikr Control Panel</h1>
+    <p class="subtitle">Automated Zikr Audio Reminders</p>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <span class="label">Reminders Active</span>
+      <label class="switch">
+        <input type="checkbox" id="enabled" {} onchange="update()">
+        <span class="slider"></span>
+      </label>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <span class="label">Interval Frequency</span>
+      <span class="val-badge" id="interval-val">{} Mins</span>
+    </div>
+    <input type="range" id="interval" min="5" max="120" step="5" value="{}" oninput="document.getElementById('interval-val').innerText = this.value + ' Mins'; update()">
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <span class="label">Audio Volume</span>
+      <span class="val-badge" id="vol-val">{}%</span>
+    </div>
+    <input type="range" id="volume" min="0" max="100" value="{}" oninput="document.getElementById('vol-val').innerText = this.value + '%'; update()">
+    <button class="btn btn-sec" onclick="window.ipc.postMessage('test_audio')">🔊 Test Zikr Sound</button>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <span class="label">Quiet Hours</span>
+      <label class="switch">
+        <input type="checkbox" id="quiet" {} onchange="update()">
+        <span class="slider"></span>
+      </label>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <span class="label">Launch on macOS Startup</span>
+      <label class="switch">
+        <input type="checkbox" id="startup" {} onchange="update()">
+        <span class="slider"></span>
+      </label>
+    </div>
+  </div>
+
+<script>
+  function update() {{
+    const enabled = document.getElementById('enabled').checked;
+    const interval = document.getElementById('interval').value;
+    const volume = document.getElementById('volume').value;
+    const quiet = document.getElementById('quiet').checked;
+    const startup = document.getElementById('startup').checked;
+    
+    const payload = `save:enabled=${{enabled}};interval_mins=${{interval}};volume=${{volume}};quiet_hours_enabled=${{quiet}};run_at_startup=${{startup}}`;
+    window.ipc.postMessage(payload);
+  }}
+</script>
+</body>
+</html>"#,
+        if config.enabled { "checked" } else { "" },
+        config.interval_mins,
+        config.interval_mins,
+        config.volume,
+        config.volume,
+        if config.quiet_hours_enabled { "checked" } else { "" },
+        if config.run_at_startup { "checked" } else { "" }
+    )
 }
