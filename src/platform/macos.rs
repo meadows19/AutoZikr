@@ -206,7 +206,6 @@ pub fn run_macos_app() {
     use tray_icon::{TrayIconBuilder, Icon};
     use muda::{Menu, MenuItem, PredefinedMenuItem};
     use tao::event_loop::{EventLoopBuilder, ControlFlow};
-    use tao::platform::macos::EventLoopBuilderExtMacOS;
     use crate::config::AppConfig;
 
     let mut exe_dir = std::env::current_exe().unwrap_or_default();
@@ -223,9 +222,7 @@ pub fn run_macos_app() {
             .status();
     }
 
-    let mut event_loop_builder = EventLoopBuilder::new();
-    event_loop_builder.with_default_menu(false);
-    let event_loop = event_loop_builder.build();
+    let event_loop = EventLoopBuilder::new().build();
 
     let menu = Menu::new();
     let item_toggle = MenuItem::new(
