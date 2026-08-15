@@ -13,9 +13,6 @@ use cocoa::appkit::{
     NSPopover, NSPopoverBehaviorTransient,
     NSScreen, NSStatusBar, NSStatusItem,
 };
-use core_graphics::context::CGContextRef;
-use core_graphics::geometry::{CGPoint, CGRect, CGSize};
-use core_graphics::color::CGColor;
 use objc::declare::ClassDecl;
 use objc::runtime::{Class, Object, Sel, BOOL};
 use objc::{class, msg_send, sel, sel_impl};
@@ -325,10 +322,12 @@ extern "C" fn view_draw_rect(this: &Object, _cmd: Sel, _dirty_rect: NSRect) {
         let (border_r, border_g, border_b) = if is_dark { (44.0/255.0, 44.0/255.0, 53.0/255.0) } else { (215.0/255.0, 215.0/255.0, 225.0/255.0) };
 
         // 1. Clear background
-        core_graphics::context::CGContextSetRGBFillColor(cg_ctx, bg_r, bg_g, bg_b, 1.0);
-        core_graphics::context::CGContextFillRect(cg_ctx, CGRect { origin: CGPoint { x: 0.0, y: 0.0 }, size: CGSize { width: 420.0, height: 640.0 } });
+        let bg_rect = NSRect { origin: NSPoint { x: 0.0, y: 0.0 }, size: NSSize { width: 420.0, height: 640.0 } };
+        let bg_color: id = msg_send![class!(NSColor), colorWithRed:bg_r green:bg_g blue:bg_b alpha:1.0];
+        let () = msg_send![bg_color, setFill];
+        let () = msg_send![class!(NSBezierPath), fillRect:bg_rect];
 
-        // Helper macro for drawing text in Cocoa coordinate system (Cocoa Y=0 is bottom)
+        // Helper for drawing text in Cocoa coordinate system (Cocoa Y=0 is bottom)
         let draw_cocoa_text = |text: &str, x: f64, y_from_top: f64, font_size: f64, bold: bool, color: (f64, f64, f64), align: u32| {
             let ns_str = NSString::alloc(nil).init_str(text);
             let font_name = if bold { "SFPro-Bold" } else { "SFPro-Regular" };
@@ -365,6 +364,19 @@ extern "C" fn view_draw_rect(this: &Object, _cmd: Sel, _dirty_rect: NSRect) {
             let () = msg_send![path, stroke];
         };
 
+        // Draw line helper
+        let draw_line = |x1: f64, y1_top: f64, x2: f64, y2_top: f64, width: f64, color: (f64, f64, f64)| {
+            let p1 = NSPoint { x: x1, y: 640.0 - y1_top };
+            let p2 = NSPoint { x: x2, y: 640.0 - y2_top };
+            let path: id = msg_send![class!(NSBezierPath), bezierPath];
+            let () = msg_send![path, moveToPoint:p1];
+            let () = msg_send![path, lineToPoint:p2];
+            let () = msg_send![path, setLineWidth:width];
+            let ns_color: id = msg_send![class!(NSColor), colorWithRed:color.0 green:color.1 blue:color.2 alpha:1.0];
+            let () = msg_send![ns_color, setStroke];
+            let () = msg_send![path, stroke];
+        };
+
         // Draw Toggle Switch helper
         let draw_toggle = |x: f64, y_from_top: f64, enabled: bool| {
             let w = 48.0; let h = 26.0;
@@ -375,7 +387,6 @@ extern "C" fn view_draw_rect(this: &Object, _cmd: Sel, _dirty_rect: NSRect) {
                 let color: id = msg_send![class!(NSColor), colorWithRed:accent_r green:accent_g blue:accent_b alpha:1.0];
                 let () = msg_send![color, setFill];
                 let () = msg_send![path, fill];
-                // Thumb on right
                 let thumb_rect = NSRect { origin: NSPoint { x: x + w - 23.0, y: cocoa_y + 3.0 }, size: NSSize { width: 20.0, height: 20.0 } };
                 let thumb: id = msg_send![class!(NSBezierPath), bezierPathWithOvalInRect:thumb_rect];
                 let white: id = msg_send![class!(NSColor), whiteColor];
@@ -385,7 +396,6 @@ extern "C" fn view_draw_rect(this: &Object, _cmd: Sel, _dirty_rect: NSRect) {
                 let color: id = msg_send![class!(NSColor), colorWithRed:border_r green:border_g blue:border_b alpha:1.0];
                 let () = msg_send![color, setFill];
                 let () = msg_send![path, fill];
-                // Thumb on left
                 let thumb_rect = NSRect { origin: NSPoint { x: x + 3.0, y: cocoa_y + 3.0 }, size: NSSize { width: 20.0, height: 20.0 } };
                 let thumb: id = msg_send![class!(NSBezierPath), bezierPathWithOvalInRect:thumb_rect];
                 let white: id = msg_send![class!(NSColor), whiteColor];
@@ -415,10 +425,12 @@ extern "C" fn view_draw_rect(this: &Object, _cmd: Sel, _dirty_rect: NSRect) {
 
             if state.config.enabled {
                 // Background Track Circle
-                core_graphics::context::CGContextSetRGBStrokeColor(cg_ctx, border_r, border_g, border_b, 1.0);
-                core_graphics::context::CGContextSetLineWidth(cg_ctx, 8.0);
-                core_graphics::context::CGContextAddArc(cg_ctx, cx, cocoa_cy, radius, 0.0, std::f64::consts::PI * 2.0, 0);
-                core_graphics::context::CGContextStrokePath(cg_ctx);
+                let ring_rect = NSRect { origin: NSPoint { x: cx - radius, y: cocoa_cy - radius }, size: NSSize { width: radius * 2.0, height: radius * 2.0 } };
+                let track_path: id = msg_send![class!(NSBezierPath), bezierPathWithOvalInRect:ring_rect];
+                let () = msg_send![track_path, setLineWidth:8.0];
+                let border_c: id = msg_send![class!(NSColor), colorWithRed:border_r green:border_g blue:border_b alpha:1.0];
+                let () = msg_send![border_c, setStroke];
+                let () = msg_send![track_path, stroke];
 
                 // Progress Arc
                 let in_quiet = crate::is_in_quiet_hours(&state.config);
@@ -426,13 +438,15 @@ extern "C" fn view_draw_rect(this: &Object, _cmd: Sel, _dirty_rect: NSRect) {
                 let pct = if state.total_seconds > 0 { (state.remaining_seconds as f64 / state.total_seconds as f64).clamp(0.0, 1.0) } else { 0.0 };
 
                 if pct > 0.0 {
-                    let start_angle = std::f64::consts::PI / 2.0;
-                    let end_angle = start_angle - (pct * std::f64::consts::PI * 2.0);
-                    core_graphics::context::CGContextSetRGBStrokeColor(cg_ctx, ring_r, ring_g, ring_b, 1.0);
-                    core_graphics::context::CGContextSetLineWidth(cg_ctx, 8.0);
-                    core_graphics::context::CGContextSetLineCap(cg_ctx, core_graphics::context::CGLineCap::kCGLineCapRound);
-                    core_graphics::context::CGContextAddArc(cg_ctx, cx, cocoa_cy, radius, start_angle, end_angle, 1);
-                    core_graphics::context::CGContextStrokePath(cg_ctx);
+                    let arc_path: id = msg_send![class!(NSBezierPath), bezierPath];
+                    let start_deg = 90.0;
+                    let end_deg = 90.0 - (pct * 360.0);
+                    let () = msg_send![arc_path, appendBezierPathWithArcWithCenter:NSPoint { x: cx, y: cocoa_cy } radius:radius startAngle:start_deg endAngle:end_deg clockwise:YES];
+                    let () = msg_send![arc_path, setLineWidth:8.0];
+                    let () = msg_send![arc_path, setLineCapStyle:1 as NSUInteger]; // NSRoundLineCapStyle
+                    let ring_c: id = msg_send![class!(NSColor), colorWithRed:ring_r green:ring_g blue:ring_b alpha:1.0];
+                    let () = msg_send![ring_c, setStroke];
+                    let () = msg_send![arc_path, stroke];
                 }
 
                 // Digits & Label
@@ -498,33 +512,22 @@ extern "C" fn view_draw_rect(this: &Object, _cmd: Sel, _dirty_rect: NSRect) {
                     }
 
                     // Double Range Slider
-                    let track_y = rule_y + 125.0;
-                    let cocoa_track_y = 640.0 - track_y;
-                    core_graphics::context::CGContextSetRGBStrokeColor(cg_ctx, border_r, border_g, border_b, 1.0);
-                    core_graphics::context::CGContextSetLineWidth(cg_ctx, 6.0);
-                    core_graphics::context::CGContextMoveToPoint(cg_ctx, 50.0, cocoa_track_y);
-                    core_graphics::context::CGContextAddLineToPoint(cg_ctx, 350.0, cocoa_track_y);
-                    core_graphics::context::CGContextStrokePath(cg_ctx);
+                    let track_top = rule_y + 125.0;
+                    draw_line(50.0, track_top, 350.0, track_top, 6.0, (border_r, border_g, border_b));
 
                     let x_start = 50.0 + (rule.start_hour as f64 / 23.0) * 300.0;
                     let x_end = 50.0 + (rule.end_hour as f64 / 23.0) * 300.0;
 
-                    core_graphics::context::CGContextSetRGBStrokeColor(cg_ctx, accent_r, accent_g, accent_b, 1.0);
-                    core_graphics::context::CGContextSetLineWidth(cg_ctx, 6.0);
                     if !rule.overnight {
-                        core_graphics::context::CGContextMoveToPoint(cg_ctx, x_start, cocoa_track_y);
-                        core_graphics::context::CGContextAddLineToPoint(cg_ctx, x_end, cocoa_track_y);
+                        draw_line(x_start, track_top, x_end, track_top, 6.0, (accent_r, accent_g, accent_b));
                     } else {
-                        core_graphics::context::CGContextMoveToPoint(cg_ctx, 50.0, cocoa_track_y);
-                        core_graphics::context::CGContextAddLineToPoint(cg_ctx, x_end, cocoa_track_y);
-                        core_graphics::context::CGContextMoveToPoint(cg_ctx, x_start, cocoa_track_y);
-                        core_graphics::context::CGContextAddLineToPoint(cg_ctx, 350.0, cocoa_track_y);
+                        draw_line(50.0, track_top, x_end, track_top, 6.0, (accent_r, accent_g, accent_b));
+                        draw_line(x_start, track_top, 350.0, track_top, 6.0, (accent_r, accent_g, accent_b));
                     }
-                    core_graphics::context::CGContextStrokePath(cg_ctx);
 
                     // Thumbs
                     for thumb_x in [x_start, x_end] {
-                        let t_rect = NSRect { origin: NSPoint { x: thumb_x - 4.0, y: cocoa_track_y - 10.0 }, size: NSSize { width: 8.0, height: 20.0 } };
+                        let t_rect = NSRect { origin: NSPoint { x: thumb_x - 4.0, y: (640.0 - track_top) - 10.0 }, size: NSSize { width: 8.0, height: 20.0 } };
                         let thumb: id = msg_send![class!(NSBezierPath), bezierPathWithRoundedRect:t_rect xRadius:4.0 yRadius:4.0];
                         let white: id = msg_send![class!(NSColor), whiteColor];
                         let () = msg_send![white, setFill];
@@ -551,19 +554,10 @@ extern "C" fn view_draw_rect(this: &Object, _cmd: Sel, _dirty_rect: NSRect) {
             draw_cocoa_text(&vol_str, 380.0, 105.0, 13.0, true, (text_r, text_g, text_b), 2);
 
             let vol_fill_x = 40.0 + (state.config.volume as f64 / 100.0) * 340.0;
-            let cocoa_vol_y = 640.0 - 150.0;
-            core_graphics::context::CGContextSetRGBStrokeColor(cg_ctx, border_r, border_g, border_b, 1.0);
-            core_graphics::context::CGContextSetLineWidth(cg_ctx, 6.0);
-            core_graphics::context::CGContextMoveToPoint(cg_ctx, 40.0, cocoa_vol_y);
-            core_graphics::context::CGContextAddLineToPoint(cg_ctx, 380.0, cocoa_vol_y);
-            core_graphics::context::CGContextStrokePath(cg_ctx);
+            draw_line(40.0, 150.0, 380.0, 150.0, 6.0, (border_r, border_g, border_b));
+            draw_line(40.0, 150.0, vol_fill_x, 150.0, 6.0, (accent_r, accent_g, accent_b));
 
-            core_graphics::context::CGContextSetRGBStrokeColor(cg_ctx, accent_r, accent_g, accent_b, 1.0);
-            core_graphics::context::CGContextMoveToPoint(cg_ctx, 40.0, cocoa_vol_y);
-            core_graphics::context::CGContextAddLineToPoint(cg_ctx, vol_fill_x, cocoa_vol_y);
-            core_graphics::context::CGContextStrokePath(cg_ctx);
-
-            let thumb_rect = NSRect { origin: NSPoint { x: vol_fill_x - 9.0, y: cocoa_vol_y - 9.0 }, size: NSSize { width: 18.0, height: 18.0 } };
+            let thumb_rect = NSRect { origin: NSPoint { x: vol_fill_x - 9.0, y: (640.0 - 150.0) - 9.0 }, size: NSSize { width: 18.0, height: 18.0 } };
             let thumb: id = msg_send![class!(NSBezierPath), bezierPathWithOvalInRect:thumb_rect];
             let accent_c: id = msg_send![class!(NSColor), colorWithRed:accent_r green:accent_g blue:accent_b alpha:1.0];
             let () = msg_send![accent_c, setFill];
@@ -576,19 +570,10 @@ extern "C" fn view_draw_rect(this: &Object, _cmd: Sel, _dirty_rect: NSRect) {
             draw_cocoa_text(&int_str, 380.0, 210.0, 13.0, true, (text_r, text_g, text_b), 2);
 
             let int_fill_x = 40.0 + (((state.config.interval_mins.clamp(5, 60) - 5) as f64) / 55.0) * 340.0;
-            let cocoa_int_y = 640.0 - 255.0;
-            core_graphics::context::CGContextSetRGBStrokeColor(cg_ctx, border_r, border_g, border_b, 1.0);
-            core_graphics::context::CGContextSetLineWidth(cg_ctx, 6.0);
-            core_graphics::context::CGContextMoveToPoint(cg_ctx, 40.0, cocoa_int_y);
-            core_graphics::context::CGContextAddLineToPoint(cg_ctx, 380.0, cocoa_int_y);
-            core_graphics::context::CGContextStrokePath(cg_ctx);
+            draw_line(40.0, 255.0, 380.0, 255.0, 6.0, (border_r, border_g, border_b));
+            draw_line(40.0, 255.0, int_fill_x, 255.0, 6.0, (accent_r, accent_g, accent_b));
 
-            core_graphics::context::CGContextSetRGBStrokeColor(cg_ctx, accent_r, accent_g, accent_b, 1.0);
-            core_graphics::context::CGContextMoveToPoint(cg_ctx, 40.0, cocoa_int_y);
-            core_graphics::context::CGContextAddLineToPoint(cg_ctx, int_fill_x, cocoa_int_y);
-            core_graphics::context::CGContextStrokePath(cg_ctx);
-
-            let thumb_rect2 = NSRect { origin: NSPoint { x: int_fill_x - 9.0, y: cocoa_int_y - 9.0 }, size: NSSize { width: 18.0, height: 18.0 } };
+            let thumb_rect2 = NSRect { origin: NSPoint { x: int_fill_x - 9.0, y: (640.0 - 255.0) - 9.0 }, size: NSSize { width: 18.0, height: 18.0 } };
             let thumb2: id = msg_send![class!(NSBezierPath), bezierPathWithOvalInRect:thumb_rect2];
             let () = msg_send![accent_c, setFill];
             let () = msg_send![thumb2, fill];
@@ -610,23 +595,14 @@ extern "C" fn view_draw_rect(this: &Object, _cmd: Sel, _dirty_rect: NSRect) {
 
         // --- Bottom Navigation Tab Bar (Y: 570 to 640) ---
         let nav_y = 570.0;
-        let cocoa_nav_y = 640.0 - nav_y;
-        core_graphics::context::CGContextSetRGBStrokeColor(cg_ctx, border_r, border_g, border_b, 1.0);
-        core_graphics::context::CGContextSetLineWidth(cg_ctx, 1.0);
-        core_graphics::context::CGContextMoveToPoint(cg_ctx, 0.0, cocoa_nav_y);
-        core_graphics::context::CGContextAddLineToPoint(cg_ctx, 420.0, cocoa_nav_y);
-        core_graphics::context::CGContextStrokePath(cg_ctx);
+        draw_line(0.0, nav_y, 420.0, nav_y, 1.0, (border_r, border_g, border_b));
 
         let tabs = ["Dashboard", "Settings"];
         for i in 0..2 {
             let active = state.current_tab == i as u32;
             let tab_x = (i as f64) * 210.0;
             if active {
-                core_graphics::context::CGContextSetRGBStrokeColor(cg_ctx, accent_r, accent_g, accent_b, 1.0);
-                core_graphics::context::CGContextSetLineWidth(cg_ctx, 3.0);
-                core_graphics::context::CGContextMoveToPoint(cg_ctx, tab_x + 30.0, cocoa_nav_y);
-                core_graphics::context::CGContextAddLineToPoint(cg_ctx, tab_x + 180.0, cocoa_nav_y);
-                core_graphics::context::CGContextStrokePath(cg_ctx);
+                draw_line(tab_x + 30.0, nav_y, tab_x + 180.0, nav_y, 3.0, (accent_r, accent_g, accent_b));
             }
             let color = if active { (accent_r, accent_g, accent_b) } else { (gray_r, gray_g, gray_b) };
             draw_cocoa_text(tabs[i], tab_x + 105.0, nav_y + 24.0, 13.0, true, color, 1);
