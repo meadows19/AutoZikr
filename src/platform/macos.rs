@@ -277,25 +277,21 @@ fn create_star_template_image(size: f64) -> id {
             }
         }
 
-        let ns_data: id = msg_send![class!(NSData), dataWithBytes:bytes.as_ptr() length:bytes.len()];
+        let planes: [*const u8; 5] = [bytes.as_ptr(), std::ptr::null(), std::ptr::null(), std::ptr::null(), std::ptr::null()];
         let img_rep: id = msg_send![class!(NSBitmapImageRep), alloc];
         let img_rep: id = msg_send![img_rep,
-            initWithBitmapDataPlanes:nil
-            pixelsWide:s as NSSize
-            pixelsHigh:s as NSSize
-            bitsPerSample:8
-            samplesPerPixel:4
+            initWithBitmapDataPlanes:planes.as_ptr()
+            pixelsWide:s as isize
+            pixelsHigh:s as isize
+            bitsPerSample:8 as isize
+            samplesPerPixel:4 as isize
             hasAlpha:YES
             isPlanar:NO
             colorSpaceName:NSString::alloc(nil).init_str("NSCalibratedRGBColorSpace")
-            bytesPerRow:(s * 4) as NSSize
-            bitsPerPixel:32
+            bytesPerRow:(s * 4) as isize
+            bitsPerPixel:32 as isize
         ];
         if img_rep != nil {
-            let bitmap_data: *mut u8 = msg_send![img_rep, bitmapData];
-            if !bitmap_data.is_null() {
-                std::ptr::copy_nonoverlapping(bytes.as_ptr(), bitmap_data, bytes.len());
-            }
             let img: id = msg_send![class!(NSImage), alloc];
             let img: id = msg_send![img, initWithSize:NSSize { width: 18.0, height: 18.0 }];
             let () = msg_send![img, addRepresentation:img_rep];
@@ -603,8 +599,13 @@ extern "C" fn view_draw_rect(this: &Object, _cmd: Sel, _dirty_rect: NSRect) {
             draw_toggle(330.0, 315.0, state.config.run_at_startup);
 
             // 4. Test Sound Button
-            draw_rounded_card(20.0, 375.0, 380.0, 48.0, 10.0, (accent_r, accent_g, accent_b), (accent_r, accent_g, accent_b));
-            draw_cocoa_text("🔊 Test Zikr Sound", 210.0, 390.0, 14.0, true, (1.0, 1.0, 1.0), 1);
+            draw_rounded_card(20.0, 375.0, 380.0, 44.0, 10.0, (accent_r, accent_g, accent_b), (accent_r, accent_g, accent_b));
+            draw_cocoa_text("🔊 Test Zikr Sound", 210.0, 388.0, 13.0, true, (1.0, 1.0, 1.0), 1);
+
+            // 5. Quit AutoZikr Button
+            let (danger_r, danger_g, danger_b) = if is_dark { (255.0/255.0, 107.0/255.0, 107.0/255.0) } else { (220.0/255.0, 50.0/255.0, 50.0/255.0) };
+            draw_rounded_card(20.0, 430.0, 380.0, 44.0, 10.0, (danger_r, danger_g, danger_b), (danger_r, danger_g, danger_b));
+            draw_cocoa_text("Quit AutoZikr", 210.0, 443.0, 13.0, true, (1.0, 1.0, 1.0), 1);
         }
 
         // --- Bottom Navigation Tab Bar (Y: 570 to 640) ---
@@ -793,8 +794,8 @@ extern "C" fn view_mouse_down(this: &Object, _cmd: Sel, event: id) {
                     let () = msg_send![this, setNeedsDisplay:YES];
                 }
 
-                // Test sound button (Y: 375 to 425)
-                if fx >= 20.0 && fx <= 400.0 && fy >= 375.0 && fy <= 425.0 {
+                // Test sound button (Y: 375 to 420)
+                if fx >= 20.0 && fx <= 400.0 && fy >= 375.0 && fy <= 420.0 {
                     let audio_files = crate::get_audio_files();
                     if !audio_files.is_empty() {
                         let rand_idx = crate::get_random_index(audio_files.len());
@@ -808,6 +809,11 @@ extern "C" fn view_mouse_down(this: &Object, _cmd: Sel, event: id) {
                             play_sound(&full_wav_path, vol);
                         }
                     }
+                }
+
+                // Quit AutoZikr button (Y: 430 to 475)
+                if fx >= 20.0 && fx <= 400.0 && fy >= 430.0 && fy <= 475.0 {
+                    std::process::exit(0);
                 }
             }
             _ => {}
@@ -894,6 +900,31 @@ extern "C" fn view_scroll_wheel(this: &Object, _cmd: Sel, event: id) {
 
 extern "C" fn status_bar_clicked(_this: &Object, _cmd: Sel) {
     unsafe {
+        let event: id = msg_send![NSApp(), currentEvent];
+        let event_type: NSUInteger = if event != nil { msg_send![event, type] } else { 0 };
+        // NSEventTypeRightMouseUp = 3, NSEventTypeRightMouseDown = 2
+        let is_right_click = event_type == 2 || event_type == 3;
+
+        if is_right_click && GLOBAL_STATUS_ITEM != nil {
+            let menu: id = msg_send![class!(NSMenu), alloc];
+            let menu: id = msg_send![menu, init];
+
+            let open_title = NSString::alloc(nil).init_str("Open Dashboard");
+            let open_item: id = msg_send![class!(NSMenuItem), alloc];
+            let open_item: id = msg_send![open_item, initWithTitle:open_title action:sel!(statusClicked:) keyEquivalent:NSString::alloc(nil).init_str("")];
+            let () = msg_send![menu, addItem:open_item];
+
+            let () = msg_send![menu, addItem:msg_send![class!(NSMenuItem), separatorItem]];
+
+            let quit_title = NSString::alloc(nil).init_str("Quit AutoZikr");
+            let quit_item: id = msg_send![class!(NSMenuItem), alloc];
+            let quit_item: id = msg_send![quit_item, initWithTitle:quit_title action:sel!(terminate:) keyEquivalent:NSString::alloc(nil).init_str("q")];
+            let () = msg_send![menu, addItem:quit_item];
+
+            let () = msg_send![GLOBAL_STATUS_ITEM, popUpStatusItemMenu:menu];
+            return;
+        }
+
         if GLOBAL_POPOVER != nil && GLOBAL_STATUS_ITEM != nil {
             let is_shown: BOOL = msg_send![GLOBAL_POPOVER, isShown];
             if is_shown == YES {
@@ -1010,6 +1041,8 @@ pub fn run_macos_app() {
             let () = msg_send![status_button, setImage:star_icon];
             let () = msg_send![status_button, setTarget:target_obj];
             let () = msg_send![status_button, setAction:sel!(statusClicked:)];
+            // NSEventMaskLeftMouseUp (1<<1) | NSEventMaskRightMouseUp (1<<3)
+            let () = msg_send![status_button, sendActionOn:( (1 << 1) | (1 << 3) ) as NSUInteger];
         }
 
         // Create Native NSPopover
