@@ -257,6 +257,7 @@ static mut GLOBAL_STATE: Option<Arc<Mutex<MacAppState>>> = None;
 static mut GLOBAL_VIEW: id = nil;
 static mut GLOBAL_POPOVER: id = nil;
 static mut GLOBAL_STATUS_ITEM: id = nil;
+static mut GLOBAL_TARGET: id = nil;
 
 fn get_state() -> &'static Arc<Mutex<MacAppState>> {
     unsafe { GLOBAL_STATE.as_ref().expect("GLOBAL_STATE not initialized") }
@@ -307,10 +308,9 @@ fn create_star_template_image(size: f64) -> id {
             }
         }
 
-        let planes: [*const u8; 5] = [bytes.as_ptr(), std::ptr::null(), std::ptr::null(), std::ptr::null(), std::ptr::null()];
         let img_rep: id = msg_send![class!(NSBitmapImageRep), alloc];
         let img_rep: id = msg_send![img_rep,
-            initWithBitmapDataPlanes:planes.as_ptr()
+            initWithBitmapDataPlanes:std::ptr::null_mut() as *mut *mut u8
             pixelsWide:s as isize
             pixelsHigh:s as isize
             bitsPerSample:8 as isize
@@ -322,6 +322,10 @@ fn create_star_template_image(size: f64) -> id {
             bitsPerPixel:32 as isize
         ];
         if img_rep != nil {
+            let bitmap_ptr: *mut u8 = msg_send![img_rep, bitmapData];
+            if !bitmap_ptr.is_null() {
+                std::ptr::copy_nonoverlapping(bytes.as_ptr(), bitmap_ptr, bytes.len());
+            }
             let img: id = msg_send![class!(NSImage), alloc];
             let img: id = msg_send![img, initWithSize:NSSize { width: 18.0, height: 18.0 }];
             let () = msg_send![img, addRepresentation:img_rep];
@@ -359,9 +363,11 @@ extern "C" fn view_draw_rect(this: &Object, _cmd: Sel, _dirty_rect: NSRect) {
         // Helper for drawing text in Cocoa coordinate system (Cocoa Y=0 is bottom)
         let draw_cocoa_text = |text: &str, x: f64, y_from_top: f64, font_size: f64, bold: bool, color: (f64, f64, f64), align: u32| {
             let ns_str = NSString::alloc(nil).init_str(text);
-            let font_name = if bold { "SFPro-Bold" } else { "SFPro-Regular" };
-            let font: id = msg_send![class!(NSFont), fontWithName:NSString::alloc(nil).init_str(font_name) size:font_size];
-            let font = if font == nil { msg_send![class!(NSFont), systemFontOfSize:font_size] } else { font };
+            let font: id = if bold {
+                msg_send![class!(NSFont), boldSystemFontOfSize:font_size]
+            } else {
+                msg_send![class!(NSFont), systemFontOfSize:font_size]
+            };
             let ns_color: id = msg_send![class!(NSColor), colorWithRed:color.0 green:color.1 blue:color.2 alpha:1.0];
 
             let dict: id = msg_send![class!(NSMutableDictionary), dictionary];
@@ -907,8 +913,11 @@ extern "C" fn status_bar_clicked(_this: &Object, _cmd: Sel, _sender: id) {
     unsafe {
         let event: id = msg_send![NSApp(), currentEvent];
         let event_type: NSUInteger = if event != nil { msg_send![event, type] } else { 0 };
+        let modifier_flags: NSUInteger = if event != nil { msg_send![event, modifierFlags] } else { 0 };
+        // NSEventModifierFlagControl = 1 << 18 (0x40000)
+        let is_control_click = (modifier_flags & (1 << 18)) != 0;
         // NSEventTypeRightMouseUp = 3, NSEventTypeRightMouseDown = 2
-        let is_right_click = event_type == 2 || event_type == 3;
+        let is_right_click = event_type == 2 || event_type == 3 || is_control_click;
 
         if is_right_click && GLOBAL_STATUS_ITEM != nil {
             let menu: id = msg_send![class!(NSMenu), alloc];
@@ -1035,6 +1044,7 @@ pub fn run_macos_app() {
         let target_class = target_decl.register();
         let target_obj: id = msg_send![target_class, alloc];
         let target_obj: id = msg_send![target_obj, init];
+        GLOBAL_TARGET = target_obj;
 
         // Create Status Bar Item
         let status_bar = NSStatusBar::systemStatusBar(nil);
