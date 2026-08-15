@@ -10,7 +10,6 @@ use cocoa::foundation::{NSAutoreleasePool, NSPoint, NSRect, NSSize, NSString, NS
 use cocoa::appkit::{
     NSApp, NSApplication, NSApplicationActivationPolicyAccessory,
     NSEvent, NSMenu, NSMenuItem,
-    NSPopover, NSPopoverBehaviorTransient,
     NSScreen, NSStatusBar, NSStatusItem,
 };
 use objc::declare::ClassDecl;
@@ -304,10 +303,6 @@ fn create_star_template_image(size: f64) -> id {
 
 extern "C" fn view_draw_rect(this: &Object, _cmd: Sel, _dirty_rect: NSRect) {
     unsafe {
-        let ctx_obj: id = msg_send![class!(NSGraphicsContext), currentContext];
-        if ctx_obj == nil { return; }
-        let cg_ctx: CGContextRef = msg_send![ctx_obj, CGContext];
-        if cg_ctx.is_null() { return; }
 
         let state_arc = get_state();
         let state = state_arc.lock().unwrap();
@@ -890,7 +885,8 @@ extern "C" fn status_bar_clicked(_this: &Object, _cmd: Sel) {
             let open_item: id = msg_send![open_item, initWithTitle:open_title action:sel!(statusClicked:) keyEquivalent:NSString::alloc(nil).init_str("")];
             let () = msg_send![menu, addItem:open_item];
 
-            let () = msg_send![menu, addItem:msg_send![class!(NSMenuItem), separatorItem]];
+            let sep: id = msg_send![class!(NSMenuItem), separatorItem];
+            let () = msg_send![menu, addItem:sep];
 
             let quit_title = NSString::alloc(nil).init_str("Quit AutoZikr");
             let quit_item: id = msg_send![class!(NSMenuItem), alloc];
