@@ -427,11 +427,8 @@ fn main() {
                             // Periodic check of audio directory contents only right before playback to save disk operations
                             state.audio_files = get_audio_files();
                             if !state.audio_files.is_empty() {
-                                // Check if system is playing audio in the background
-                                if audio::is_audio_playing() {
-                                    // Media is active; defer by 15 seconds so we don't interrupt or lose the reminder
-                                    state.remaining_seconds = 15;
-                                } else {
+                                // Only play if background audio is NOT active
+                                if !audio::is_audio_playing() {
                                     // Select random audio file
                                     let rand_idx = get_random_index(state.audio_files.len());
                                     let selected_file = state.audio_files[rand_idx].clone();
@@ -446,11 +443,11 @@ fn main() {
                                         // Play it
                                         audio::play_sound(&full_wav_path, state.config.volume);
                                     }
-
-                                    // Reset countdown timer to the next wall-clock boundary
-                                    state.remaining_seconds = get_seconds_until_next_boundary(state.config.interval_mins);
-                                    state.total_seconds = state.config.interval_mins * 60;
                                 }
+
+                                // Always advance countdown timer to the next wall-clock boundary
+                                state.remaining_seconds = get_seconds_until_next_boundary(state.config.interval_mins);
+                                state.total_seconds = state.config.interval_mins * 60;
                             }
                         }
                     }

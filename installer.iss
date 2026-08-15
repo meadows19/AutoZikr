@@ -1,6 +1,6 @@
 ; AutoZikr Inno Setup Installer Script
 #define MyAppName "AutoZikr"
-#define MyAppVersion "1.8.0"
+#define MyAppVersion "1.8.1"
 #define MyAppPublisher "AutoZikr"
 #define MyAppURL "https://github.com/meadows19/AutoZikr"
 #define MyAppExeName "autozikr.exe"

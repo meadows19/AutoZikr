@@ -1107,10 +1107,7 @@ pub fn run_macos_app() {
                         if state.remaining_seconds > 0 {
                             state.remaining_seconds -= 1;
                         } else {
-                            if is_audio_playing() {
-                                // Media is active; defer by 15 seconds so we don't interrupt or lose the reminder
-                                state.remaining_seconds = 15;
-                            } else {
+                            if !is_audio_playing() {
                                 state.audio_files = crate::get_audio_files();
                                 if !state.audio_files.is_empty() {
                                     let rand_idx = crate::get_random_index(state.audio_files.len());
@@ -1123,9 +1120,10 @@ pub fn run_macos_app() {
                                         play_sound(&full_wav_path, state.config.volume);
                                     }
                                 }
-                                state.remaining_seconds = crate::get_seconds_until_next_boundary(state.config.interval_mins);
-                                state.total_seconds = state.config.interval_mins * 60;
                             }
+                            // Always advance to next scheduled boundary
+                            state.remaining_seconds = crate::get_seconds_until_next_boundary(state.config.interval_mins);
+                            state.total_seconds = state.config.interval_mins * 60;
                         }
                     }
                 }
