@@ -1,19 +1,20 @@
+#![allow(unused_must_use, unused_unsafe)]
+
 use std::sync::{Arc, Mutex};
 use std::path::PathBuf;
 
 use windows::core::{w, Result};
-use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM, RECT, POINT};
+use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM, RECT};
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetClientRect, SetWindowPos, HWND_TOPMOST, SWP_SHOWWINDOW,
+    GetClientRect,
     GWLP_USERDATA, GetWindowLongPtrW, SetWindowLongPtrW, DefWindowProcW,
     WM_CREATE, WM_PAINT, WM_SIZE, WM_CLOSE, WM_DESTROY,
     WM_LBUTTONDOWN, WM_MOUSEMOVE, WM_LBUTTONUP,
-    IDC_ARROW, LoadCursorW, HCURSOR, IDI_APPLICATION, LoadIconW,
-    ShowWindow, PostQuitMessage, SW_HIDE, SW_SHOW,
+    IDC_ARROW, LoadCursorW, HCURSOR,
+    ShowWindow, PostQuitMessage, SW_HIDE,
 };
 use windows::Win32::Graphics::Direct2D::{
-    D2D1CreateFactory, ID2D1Factory, ID2D1HwndRenderTarget, ID2D1SolidColorBrush,
-    D2D1_FACTORY_TYPE_SINGLE_THREADED, D2D1_RENDER_TARGET_PROPERTIES, D2D1_HWND_RENDER_TARGET_PROPERTIES,
+    ID2D1Factory, ID2D1HwndRenderTarget, ID2D1SolidColorBrush, D2D1_RENDER_TARGET_PROPERTIES, D2D1_HWND_RENDER_TARGET_PROPERTIES,
     D2D1_ROUNDED_RECT, D2D1_ELLIPSE, D2D1_ARC_SEGMENT, D2D1_SWEEP_DIRECTION_CLOCKWISE,
     D2D1_ARC_SIZE_LARGE, D2D1_ARC_SIZE_SMALL,
 };
@@ -22,10 +23,9 @@ use windows::Win32::Graphics::Direct2D::Common::{
     D2D1_FIGURE_BEGIN_HOLLOW, D2D1_FIGURE_END_OPEN
 };
 use windows::Win32::Graphics::DirectWrite::{
-    DWriteCreateFactory, IDWriteFactory, IDWriteTextFormat, DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_WEIGHT_REGULAR,
+    IDWriteFactory, IDWriteTextFormat, DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_WEIGHT_REGULAR,
     DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, DWRITE_TEXT_ALIGNMENT_CENTER,
     DWRITE_TEXT_ALIGNMENT_LEADING, DWRITE_TEXT_ALIGNMENT_TRAILING, DWRITE_PARAGRAPH_ALIGNMENT_CENTER,
-    DWRITE_FACTORY_TYPE_SHARED,
 };
 use windows::Win32::Graphics::Gdi::{PAINTSTRUCT, BeginPaint, EndPaint, InvalidateRect};
 
@@ -40,6 +40,7 @@ pub struct AppState {
     pub current_tab: u32, // 0: Dashboard, 1: Settings
     pub volume_dragging: bool,
     pub interval_dragging: bool,
+    #[allow(dead_code)]
     pub next_reminder_tick: bool, // trigger playing in background
     pub is_dirty: bool,
 
@@ -61,6 +62,7 @@ pub struct AppState {
     pub system_sleeping: bool,
 }
 
+#[allow(dead_code)]
 pub struct GuiContext {
     hwnd: HWND,
     state: Arc<Mutex<AppState>>,
@@ -391,7 +393,7 @@ impl GuiContext {
         let cmd_id = (wparam.0 & 0xFFFF) as u32;
         unsafe {
             use windows::Win32::UI::WindowsAndMessaging::{
-                ShowWindow, SW_SHOW, SetForegroundWindow, DestroyWindow
+                SetForegroundWindow, DestroyWindow
             };
             use windows::Win32::Graphics::Gdi::InvalidateRect;
             use crate::tray::{ID_TRAY_OPEN, ID_TRAY_TOGGLE, ID_TRAY_EXIT, update_tray_status, remove_tray_icon};

@@ -12,7 +12,7 @@ mod gui;
 mod tray;
 
 use std::sync::{Arc, Mutex};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::fs;
 use std::thread;
 use std::time::Duration;
@@ -20,15 +20,13 @@ use std::time::Duration;
 #[cfg(target_os = "windows")]
 use windows::core::{w, PCWSTR};
 #[cfg(target_os = "windows")]
-use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM, RECT};
+use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DestroyWindow, DispatchMessageW, GetMessageW, RegisterClassW,
+    CreateWindowExW, DispatchMessageW, GetMessageW, RegisterClassW,
     ShowWindow, TranslateMessage, MSG, WNDCLASSW,
     WS_POPUP, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
-    CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, SW_HIDE, SW_SHOW,
-    GetWindowLongPtrW, GWLP_USERDATA, AdjustWindowRectEx,
-    WINDOW_EX_STYLE, PostQuitMessage, HCURSOR, HICON,
+    CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, SW_HIDE, HCURSOR, HICON,
     LoadCursorW, IDC_ARROW, LoadIconW, IDI_APPLICATION
 };
 #[cfg(target_os = "windows")]
@@ -39,8 +37,7 @@ use crate::config::AppConfig;
 use crate::gui::{wnd_proc, AppState};
 #[cfg(target_os = "windows")]
 use crate::tray::{
-    add_tray_icon, remove_tray_icon, show_context_menu, update_tray_status,
-    ID_TRAY_EXIT, ID_TRAY_OPEN, ID_TRAY_TOGGLE, WM_TRAY_ICON
+    add_tray_icon, update_tray_status
 };
 
 // SystemTime struct and kernel32 binding to get local system time with zero dependencies
@@ -108,7 +105,27 @@ pub fn get_time_string() -> String {
 pub fn get_zikr_audio_dir() -> PathBuf {
     let mut exe_path = std::env::current_exe().unwrap_or_default();
     exe_path.pop(); // get directory containing executable
+
+    // On macOS .app bundles, store custom audio in ~/Library/Application Support/AutoZikr/zikr_audio/
+    // (same location as config.ini) instead of inside the read-only .app bundle
+    #[cfg(target_os = "macos")]
+    let audio_dir = {
+        if exe_path.to_string_lossy().contains(".app/Contents/MacOS") {
+            match std::env::var("HOME") {
+                Ok(home) => PathBuf::from(home)
+                    .join("Library")
+                    .join("Application Support")
+                    .join("AutoZikr")
+                    .join("zikr_audio"),
+                Err(_) => exe_path.join("zikr_audio"),
+            }
+        } else {
+            exe_path.join("zikr_audio")
+        }
+    };
+    #[cfg(not(target_os = "macos"))]
     let audio_dir = exe_path.join("zikr_audio");
+
     if !audio_dir.exists() {
         let _ = fs::create_dir_all(&audio_dir);
     }
@@ -184,16 +201,22 @@ pub fn is_in_quiet_hours(config: &AppConfig) -> bool {
 }
 
 fn get_random_index(max: usize) -> usize {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    static COUNTER: AtomicUsize = AtomicUsize::new(0);
+
     if max == 0 {
         return 0;
     }
-    // Use nanosecond-precision timestamp for good entropy on all platforms
+    // Mix nanosecond timestamp, monotonic counter, and pointer-based ASLR entropy
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .subsec_nanos() as usize;
-    let st = get_local_time();
-    let seed = nanos.wrapping_add((st.second as usize) * 100).wrapping_add(st.minute as usize);
+    let count = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let addr_entropy = (&COUNTER as *const _ as usize) >> 4;
+    let seed = nanos
+        .wrapping_add(count.wrapping_mul(2654435761)) // Knuth multiplicative hash
+        .wrapping_add(addr_entropy);
     let rand = (seed.wrapping_mul(1103515245).wrapping_add(12345)) & 0x7fffffff;
     rand % max
 }
@@ -215,6 +238,7 @@ pub fn get_seconds_until_next_boundary(interval_mins: u32) -> u32 {
     }
 }
 
+#[allow(dead_code)]
 pub struct SingleInstanceHandle(#[cfg(target_os = "windows")] windows::Win32::Foundation::HANDLE);
 
 #[cfg(target_os = "windows")]
@@ -314,7 +338,7 @@ fn main() {
         let hinstance = windows::Win32::System::LibraryLoader::GetModuleHandleW(None).unwrap();
         let window_class = w!("AutoZikrWindowClass");
 
-        let hicon = unsafe {
+        let hicon = {
             LoadIconW(hinstance, PCWSTR(1 as *const u16)).unwrap_or_else(|_| {
                 LoadIconW(None, IDI_APPLICATION).unwrap_or(HICON::default())
             })
@@ -323,7 +347,7 @@ fn main() {
             style: CS_HREDRAW | CS_VREDRAW,
             lpfnWndProc: Some(wnd_proc),
             hInstance: hinstance.into(),
-            hCursor: unsafe { LoadCursorW(None, IDC_ARROW).unwrap_or(HCURSOR::default()) },
+            hCursor: { LoadCursorW(None, IDC_ARROW).unwrap_or(HCURSOR::default()) },
             hIcon: hicon,
             lpszClassName: window_class,
             ..Default::default()
@@ -369,19 +393,17 @@ fn main() {
         update_tray_status(hwnd, state.lock().unwrap().config.enabled);
 
         // Start hidden in tray
-        ShowWindow(hwnd, SW_HIDE);
+        let _ = ShowWindow(hwnd, SW_HIDE);
 
         // 5. Spawn background timer and logic thread
         let state_thread = Arc::clone(&state);
         let hwnd_raw = hwnd.0 as isize;
         thread::spawn(move || {
             // Initialize COM once for this background thread to avoid repeated init/deinit overhead
-            unsafe {
-                let _ = windows::Win32::System::Com::CoInitializeEx(
-                    None,
-                    windows::Win32::System::Com::COINIT_MULTITHREADED,
-                );
-            }
+            let _ = windows::Win32::System::Com::CoInitializeEx(
+                None,
+                windows::Win32::System::Com::COINIT_MULTITHREADED,
+            );
 
             loop {
                 thread::sleep(Duration::from_secs(1));
@@ -432,8 +454,8 @@ fn main() {
 
                     // Force GUI repaint only if the window is currently visible (massive idle CPU savings)
                     let thread_hwnd = HWND(hwnd_raw as *mut _);
-                    if unsafe { windows::Win32::UI::WindowsAndMessaging::IsWindowVisible(thread_hwnd).as_bool() } {
-                        unsafe { InvalidateRect(thread_hwnd, None, false) };
+                    if windows::Win32::UI::WindowsAndMessaging::IsWindowVisible(thread_hwnd).as_bool() {
+                        let _ = InvalidateRect(thread_hwnd, None, false);
                     }
                 }
             }
@@ -442,7 +464,7 @@ fn main() {
         // 6. Main GUI Message Loop
         let mut msg = MSG::default();
         while GetMessageW(&mut msg, None, 0, 0).as_bool() {
-            TranslateMessage(&msg);
+            let _ = TranslateMessage(&msg);
             DispatchMessageW(&msg);
         }
     }

@@ -3,7 +3,6 @@ use windows::Win32::Foundation::{HWND, POINT};
 use windows::Win32::UI::Shell::{
     NOTIFYICONDATAW, Shell_NotifyIconW, NIF_ICON, NIF_MESSAGE, NIF_TIP, NIF_INFO, NIIF_INFO, NIM_ADD, NIM_DELETE, NIM_MODIFY,
 };
-use windows::Win32::Foundation::LPARAM;
 use windows::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CreatePopupMenu, DestroyMenu, GetCursorPos, LoadIconW, SetForegroundWindow, TrackPopupMenu,
     HICON, IDI_APPLICATION, MF_STRING, TPM_LEFTALIGN, TPM_RIGHTBUTTON, WM_USER,
@@ -168,7 +167,7 @@ pub fn update_tray_icon_theme(hwnd: HWND) {
             LoadIconW(None, IDI_APPLICATION).unwrap_or(HICON::default())
         });
         
-        let mut nid = NOTIFYICONDATAW {
+        let nid = NOTIFYICONDATAW {
             cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
             hWnd: hwnd,
             uID: TRAY_ICON_ID,
@@ -176,11 +175,12 @@ pub fn update_tray_icon_theme(hwnd: HWND) {
             hIcon: hicon,
             ..Default::default()
         };
-        Shell_NotifyIconW(NIM_MODIFY, &nid);
+        let _ = Shell_NotifyIconW(NIM_MODIFY, &nid);
     }
 }
 
 /// Displays a system notification balloon near the system tray icon
+#[allow(dead_code)]
 pub fn show_tray_notification(hwnd: HWND, title: &str, message: &str) {
     use std::ffi::OsStr;
     use std::os::windows::ffi::OsStrExt;

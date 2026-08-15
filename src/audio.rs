@@ -3,13 +3,14 @@ use std::os::windows::ffi::OsStrExt;
 use std::path::Path;
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::HWND;
-use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_MULTITHREADED};
+use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_ALL};
 use windows::Win32::Media::Audio::{
     IMMDeviceEnumerator, MMDeviceEnumerator, eRender, eConsole, PlaySoundW, SND_MEMORY, SND_NODEFAULT,
 };
 use windows::Win32::Media::Audio::Endpoints::IAudioMeterInformation;
 
 // Custom binding to MCI send string function in winmm.dll
+#[allow(dead_code)]
 #[cfg(target_os = "windows")]
 #[link(name = "winmm")]
 extern "system" {
@@ -76,6 +77,7 @@ pub fn play_sound_bytes(data: &'static [u8], volume: u32) {
     });
 }
 
+#[allow(dead_code)]
 fn send_mci_command(cmd: &str) -> Result<(), u32> {
     let mut cmd_utf16: Vec<u16> = OsStr::new(cmd).encode_wide().collect();
     cmd_utf16.push(0); // null terminator
