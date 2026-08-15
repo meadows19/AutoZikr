@@ -384,6 +384,26 @@ extern "C" fn view_draw_rect(this: &Object, _cmd: Sel, _dirty_rect: NSRect) {
             let () = msg_send![ns_str, drawAtPoint:NSPoint { x: draw_x, y: cocoa_y } withAttributes:dict];
         };
 
+        // Helper for drawing text centered at exact (cx, cy_top) point
+        let draw_cocoa_text_centered = |text: &str, cx: f64, cy_top: f64, font_size: f64, bold: bool, color: (f64, f64, f64)| {
+            let ns_str = NSString::alloc(nil).init_str(text);
+            let font: id = if bold {
+                msg_send![class!(NSFont), boldSystemFontOfSize:font_size]
+            } else {
+                msg_send![class!(NSFont), systemFontOfSize:font_size]
+            };
+            let ns_color: id = msg_send![class!(NSColor), colorWithRed:color.0 green:color.1 blue:color.2 alpha:1.0];
+
+            let dict: id = msg_send![class!(NSMutableDictionary), dictionary];
+            let () = msg_send![dict, setObject:font forKey:NSString::alloc(nil).init_str("NSFont")];
+            let () = msg_send![dict, setObject:ns_color forKey:NSString::alloc(nil).init_str("NSColor")];
+
+            let str_size: NSSize = msg_send![ns_str, sizeWithAttributes:dict];
+            let draw_x = cx - (str_size.width / 2.0);
+            let cocoa_y = (640.0 - cy_top) - (str_size.height / 2.0);
+            let () = msg_send![ns_str, drawAtPoint:NSPoint { x: draw_x, y: cocoa_y } withAttributes:dict];
+        };
+
         // Draw rounded rectangle helper
         let draw_rounded_card = |x: f64, y_from_top: f64, w: f64, h: f64, radius: f64, fill: (f64, f64, f64), border: (f64, f64, f64)| {
             let cocoa_y = 640.0 - y_from_top - h;
@@ -456,13 +476,13 @@ extern "C" fn view_draw_rect(this: &Object, _cmd: Sel, _dirty_rect: NSRect) {
             let cx = 210.0;
             let cy_top = 182.0 - scroll_y as f64;
             let cocoa_cy = 640.0 - cy_top;
-            let radius = 62.0;
+            let radius = 68.0;
 
             if state.config.enabled {
                 // Background Track Circle
                 let ring_rect = NSRect { origin: NSPoint { x: cx - radius, y: cocoa_cy - radius }, size: NSSize { width: radius * 2.0, height: radius * 2.0 } };
                 let track_path: id = msg_send![class!(NSBezierPath), bezierPathWithOvalInRect:ring_rect];
-                let () = msg_send![track_path, setLineWidth:8.0];
+                let () = msg_send![track_path, setLineWidth:9.0];
                 let border_c: id = msg_send![class!(NSColor), colorWithRed:border_r green:border_g blue:border_b alpha:1.0];
                 let () = msg_send![border_c, setStroke];
                 let () = msg_send![track_path, stroke];
@@ -477,23 +497,23 @@ extern "C" fn view_draw_rect(this: &Object, _cmd: Sel, _dirty_rect: NSRect) {
                     let start_deg = 90.0;
                     let end_deg = 90.0 - (pct * 360.0);
                     let () = msg_send![arc_path, appendBezierPathWithArcWithCenter:NSPoint { x: cx, y: cocoa_cy } radius:radius startAngle:start_deg endAngle:end_deg clockwise:YES];
-                    let () = msg_send![arc_path, setLineWidth:8.0];
+                    let () = msg_send![arc_path, setLineWidth:9.0];
                     let () = msg_send![arc_path, setLineCapStyle:1 as NSUInteger]; // NSRoundLineCapStyle
                     let ring_c: id = msg_send![class!(NSColor), colorWithRed:ring_r green:ring_g blue:ring_b alpha:1.0];
                     let () = msg_send![ring_c, setStroke];
                     let () = msg_send![arc_path, stroke];
                 }
 
-                // Digits & Label
+                // Digits & Label (Perfect dual-line centering)
                 let mins = state.remaining_seconds / 60;
                 let secs = state.remaining_seconds % 60;
                 let time_str = format!("{:02}:{:02}", mins, secs);
-                draw_cocoa_text(&time_str, cx, cy_top - 18.0, 32.0, true, (text_r, text_g, text_b), 1);
+                draw_cocoa_text_centered(&time_str, cx, cy_top - 8.0, 32.0, true, (text_r, text_g, text_b));
                 let label = if in_quiet { "QUIET HOURS" } else { "NEXT REMINDER" };
-                draw_cocoa_text(label, cx, cy_top + 20.0, 10.0, true, (gray_r, gray_g, gray_b), 1);
+                draw_cocoa_text_centered(label, cx, cy_top + 18.0, 10.0, true, (gray_r, gray_g, gray_b));
             } else {
-                draw_cocoa_text("Reminders are Off", cx, cy_top - 12.0, 16.0, true, (text_r, text_g, text_b), 1);
-                draw_cocoa_text("Toggle 'Active' at top to start timer.", cx, cy_top + 12.0, 12.0, false, (gray_r, gray_g, gray_b), 1);
+                draw_cocoa_text_centered("Reminders are Off", cx, cy_top - 8.0, 16.0, true, (text_r, text_g, text_b));
+                draw_cocoa_text_centered("Toggle 'Active' at top to start timer.", cx, cy_top + 14.0, 12.0, false, (gray_r, gray_g, gray_b));
             }
 
             // 2. Quiet Hours Card (Y: 295+)
