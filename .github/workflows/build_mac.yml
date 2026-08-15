@@ -49,8 +49,11 @@ jobs:
 
       - name: Package into macOS Disk Image (.dmg)
         run: |
-          mkdir dist
-          hdiutil create -volname "AutoZikr" -srcfolder AutoZikr.app -ov -format UDZO dist/AutoZikr_macOS_Universal.dmg
+          mkdir -p dist
+          mkdir -p dmg_root
+          cp -R AutoZikr.app dmg_root/
+          ln -s /Applications dmg_root/Applications
+          hdiutil create -volname "AutoZikr" -srcfolder dmg_root -ov -format UDZO dist/AutoZikr_macOS_Universal.dmg
 
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4

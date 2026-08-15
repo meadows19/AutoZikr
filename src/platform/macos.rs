@@ -20,9 +20,25 @@ use crate::config::{AppConfig, QuietHoursRule};
 
 // --- Native Audio Engine via macOS AppKit NSSound ---
 
+static ACTIVE_SOUND: Mutex<Option<usize>> = Mutex::new(None);
+
+fn stop_previous_sound() {
+    if let Ok(mut guard) = ACTIVE_SOUND.lock() {
+        if let Some(sound_ptr) = guard.take() {
+            unsafe {
+                let sound = sound_ptr as id;
+                let () = msg_send![sound, stop];
+                let () = msg_send![sound, release];
+            }
+        }
+    }
+}
+
 /// Plays embedded WAV audio bytes directly from memory using native macOS NSSound.
 pub fn play_sound_bytes(data: &'static [u8], volume: u32) {
     let vol_factor = ((volume as f32 / 100.0).clamp(0.0, 1.0)).powf(1.4);
+
+    stop_previous_sound();
 
     std::thread::spawn(move || unsafe {
         let pool = NSAutoreleasePool::new(nil);
@@ -31,6 +47,9 @@ pub fn play_sound_bytes(data: &'static [u8], volume: u32) {
             let sound: id = msg_send![class!(NSSound), alloc];
             let sound: id = msg_send![sound, initWithData:ns_data];
             if sound != nil {
+                if let Ok(mut guard) = ACTIVE_SOUND.lock() {
+                    *guard = Some(sound as usize);
+                }
                 let () = msg_send![sound, setVolume:vol_factor];
                 let () = msg_send![sound, play];
                 // Keep thread alive until sound finishes
@@ -38,9 +57,14 @@ pub fn play_sound_bytes(data: &'static [u8], volume: u32) {
                     let playing: BOOL = msg_send![sound, isPlaying];
                     playing == YES
                 } {
-                    std::thread::sleep(Duration::from_millis(100));
+                    std::thread::sleep(Duration::from_millis(50));
                 }
-                let () = msg_send![sound, release];
+                if let Ok(mut guard) = ACTIVE_SOUND.lock() {
+                    if *guard == Some(sound as usize) {
+                        *guard = None;
+                        let () = msg_send![sound, release];
+                    }
+                }
             }
         }
         let () = msg_send!(pool, drain);
@@ -53,21 +77,31 @@ pub fn play_sound(path: &Path, volume: u32) {
         let path_owned = path_str.to_string();
         let vol_factor = ((volume as f32 / 100.0).clamp(0.0, 1.0)).powf(1.4);
 
+        stop_previous_sound();
+
         std::thread::spawn(move || unsafe {
             let pool = NSAutoreleasePool::new(nil);
             let ns_path = NSString::alloc(nil).init_str(&path_owned);
             let sound: id = msg_send![class!(NSSound), alloc];
             let sound: id = msg_send![sound, initWithContentsOfFile:ns_path byReference:NO];
             if sound != nil {
+                if let Ok(mut guard) = ACTIVE_SOUND.lock() {
+                    *guard = Some(sound as usize);
+                }
                 let () = msg_send![sound, setVolume:vol_factor];
                 let () = msg_send![sound, play];
                 while {
                     let playing: BOOL = msg_send![sound, isPlaying];
                     playing == YES
                 } {
-                    std::thread::sleep(Duration::from_millis(100));
+                    std::thread::sleep(Duration::from_millis(50));
                 }
-                let () = msg_send![sound, release];
+                if let Ok(mut guard) = ACTIVE_SOUND.lock() {
+                    if *guard == Some(sound as usize) {
+                        *guard = None;
+                        let () = msg_send![sound, release];
+                    }
+                }
             }
             let () = msg_send!(pool, drain);
         });
