@@ -1020,7 +1020,7 @@ pub fn run_macos_app() {
         // Create Native NSPopover
         let popover: id = msg_send![class!(NSPopover), alloc];
         let popover: id = msg_send![popover, init];
-        let () = msg_send![popover, setBehavior:NSPopoverBehaviorTransient];
+        let () = msg_send![popover, setBehavior:1 as isize]; // NSPopoverBehaviorTransient = 1
         let () = msg_send![popover, setAnimates:YES];
         let () = msg_send![popover, setContentSize:NSSize { width: 420.0, height: 640.0 }];
         GLOBAL_POPOVER = popover;
