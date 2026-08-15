@@ -135,15 +135,25 @@ pub fn is_lid_closed() -> bool {
     false
 }
 
-/// Senses if macOS is currently using Dark Mode.
+/// Senses if macOS is currently using Dark Mode via native NSAppearance (zero subprocess overhead).
 pub fn is_system_dark_mode() -> bool {
-    let output = Command::new("defaults")
-        .args(["read", "-g", "AppleInterfaceStyle"])
-        .output();
-    if let Ok(out) = output {
-        let stdout = String::from_utf8_lossy(&out.stdout);
-        stdout.trim() == "Dark"
-    } else {
+    unsafe {
+        let app = NSApp();
+        if app != nil {
+            let appearance: id = msg_send![app, effectiveAppearance];
+            if appearance != nil {
+                let name: id = msg_send![appearance, name];
+                if name != nil {
+                    let utf8_ptr: *const std::os::raw::c_char = msg_send![name, UTF8String];
+                    if !utf8_ptr.is_null() {
+                        let cstr = std::ffi::CStr::from_ptr(utf8_ptr);
+                        if let Ok(s) = cstr.to_str() {
+                            return s.contains("Dark");
+                        }
+                    }
+                }
+            }
+        }
         false
     }
 }
@@ -732,6 +742,28 @@ extern "C" fn view_mouse_down(this: &Object, _cmd: Sel, event: id) {
                             return;
                         }
 
+                        // Preset badge click (cycle presets)
+                        if fx >= 105.0 && fx <= 215.0 && clicked_fy >= rule_y + 12.0 && clicked_fy <= rule_y + 38.0 {
+                            let new_preset = match state.quiet_hours_rules[i].preset.as_str() {
+                                "every_day" => "work_days",
+                                "work_days" => "weekends",
+                                "weekends" => "custom",
+                                _ => "every_day",
+                            };
+                            state.quiet_hours_rules[i].preset = new_preset.to_string();
+                            match new_preset {
+                                "every_day" => state.quiet_hours_rules[i].days = [true; 7],
+                                "work_days" => state.quiet_hours_rules[i].days = [true, true, true, true, true, false, false],
+                                "weekends" => state.quiet_hours_rules[i].days = [false, false, false, false, false, true, true],
+                                _ => {}
+                            }
+                            let rules_str: Vec<String> = state.quiet_hours_rules.iter().map(|r| r.serialize()).collect();
+                            state.config.quiet_hours_rules = rules_str.join(";");
+                            state.config.save_to_file(&state.config_path);
+                            let () = msg_send![this, setNeedsDisplay:YES];
+                            return;
+                        }
+
                         // Day bubbles
                         for d in 0..7 {
                             let cx_day = 55.0 + (d as f64 * 42.0);
@@ -739,6 +771,7 @@ extern "C" fn view_mouse_down(this: &Object, _cmd: Sel, event: id) {
                             let dist = ((fx - cx_day).powi(2) + (clicked_fy - cy_day).powi(2)).sqrt();
                             if dist <= 14.0 {
                                 state.quiet_hours_rules[i].days[d] = !state.quiet_hours_rules[i].days[d];
+                                state.quiet_hours_rules[i].preset = "custom".to_string();
                                 let rules_str: Vec<String> = state.quiet_hours_rules.iter().map(|r| r.serialize()).collect();
                                 state.config.quiet_hours_rules = rules_str.join(";");
                                 state.config.save_to_file(&state.config_path);
