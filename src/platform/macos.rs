@@ -903,7 +903,7 @@ extern "C" fn view_scroll_wheel(this: &Object, _cmd: Sel, event: id) {
 
 // --- Menu Bar Click Target ---
 
-extern "C" fn status_bar_clicked(_this: &Object, _cmd: Sel) {
+extern "C" fn status_bar_clicked(_this: &Object, _cmd: Sel, _sender: id) {
     unsafe {
         let event: id = msg_send![NSApp(), currentEvent];
         let event_type: NSUInteger = if event != nil { msg_send![event, type] } else { 0 };
@@ -1031,7 +1031,7 @@ pub fn run_macos_app() {
 
         // Register Target action class for Status Item
         let mut target_decl = ClassDecl::new("AutoZikrStatusTarget", class!(NSObject)).expect("Failed to register AutoZikrStatusTarget");
-        target_decl.add_method(sel!(statusClicked:), status_bar_clicked as extern "C" fn(&Object, Sel));
+        target_decl.add_method(sel!(statusClicked:), status_bar_clicked as extern "C" fn(&Object, Sel, id));
         let target_class = target_decl.register();
         let target_obj: id = msg_send![target_class, alloc];
         let target_obj: id = msg_send![target_obj, init];
@@ -1118,7 +1118,8 @@ pub fn run_macos_app() {
                 // Request view redraw on main queue
                 unsafe {
                     if GLOBAL_VIEW != nil {
-                        let () = msg_send![GLOBAL_VIEW, performSelectorOnMainThread:sel!(setNeedsDisplay:) withObject:nil waitUntilDone:NO];
+                        let num: id = msg_send![class!(NSNumber), numberWithBool:YES];
+                        let () = msg_send![GLOBAL_VIEW, performSelectorOnMainThread:sel!(setNeedsDisplay:) withObject:num waitUntilDone:NO];
                     }
                 }
             }
