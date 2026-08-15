@@ -108,8 +108,25 @@ pub fn play_sound(path: &Path, volume: u32) {
     }
 }
 
-/// Checks if audio is currently playing in the background on macOS.
+/// Checks if media (video, music, meeting) is currently actively playing on macOS.
 pub fn is_audio_playing() -> bool {
+    if let Ok(out) = Command::new("pmset").args(["-g", "assertions"]).output() {
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        // Only trigger when an active PreventUserIdleDisplaySleep assertion with media reason is present
+        if stdout.contains("PreventUserIdleDisplaySleep") {
+            for line in stdout.lines() {
+                let lower = line.to_lowercase();
+                if (lower.contains("video") || lower.contains("audio") || lower.contains("playing") ||
+                    lower.contains("media") || lower.contains("movie") || lower.contains("webcam") ||
+                    lower.contains("meeting") || lower.contains("zoom") || lower.contains("teams") ||
+                    lower.contains("facetime") || lower.contains("spotify") || lower.contains("music") ||
+                    lower.contains("netflix") || lower.contains("youtube") || lower.contains("vlc") ||
+                    lower.contains("quicktime")) && (lower.contains("named") || lower.contains("assertion")) {
+                    return true;
+                }
+            }
+        }
+    }
     false
 }
 
@@ -1090,20 +1107,25 @@ pub fn run_macos_app() {
                         if state.remaining_seconds > 0 {
                             state.remaining_seconds -= 1;
                         } else {
-                            state.audio_files = crate::get_audio_files();
-                            if !state.audio_files.is_empty() {
-                                let rand_idx = crate::get_random_index(state.audio_files.len());
-                                let selected_file = state.audio_files[rand_idx].clone();
-                                if let Some(bytes) = crate::builtin_audio::get_builtin_bytes(&selected_file) {
-                                    play_sound_bytes(bytes, state.config.volume);
-                                } else {
-                                    let audio_dir = crate::get_zikr_audio_dir();
-                                    let full_wav_path = audio_dir.join(&selected_file);
-                                    play_sound(&full_wav_path, state.config.volume);
+                            if is_audio_playing() {
+                                // Media is active; defer by 15 seconds so we don't interrupt or lose the reminder
+                                state.remaining_seconds = 15;
+                            } else {
+                                state.audio_files = crate::get_audio_files();
+                                if !state.audio_files.is_empty() {
+                                    let rand_idx = crate::get_random_index(state.audio_files.len());
+                                    let selected_file = state.audio_files[rand_idx].clone();
+                                    if let Some(bytes) = crate::builtin_audio::get_builtin_bytes(&selected_file) {
+                                        play_sound_bytes(bytes, state.config.volume);
+                                    } else {
+                                        let audio_dir = crate::get_zikr_audio_dir();
+                                        let full_wav_path = audio_dir.join(&selected_file);
+                                        play_sound(&full_wav_path, state.config.volume);
+                                    }
                                 }
+                                state.remaining_seconds = crate::get_seconds_until_next_boundary(state.config.interval_mins);
+                                state.total_seconds = state.config.interval_mins * 60;
                             }
-                            state.remaining_seconds = crate::get_seconds_until_next_boundary(state.config.interval_mins);
-                            state.total_seconds = state.config.interval_mins * 60;
                         }
                     }
                 }
