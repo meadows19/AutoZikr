@@ -108,31 +108,14 @@ pub fn play_sound(path: &Path, volume: u32) {
     }
 }
 
-/// Checks if audio is currently playing in the background on macOS using pmset assertions.
+/// Checks if audio is currently playing in the background on macOS.
 pub fn is_audio_playing() -> bool {
-    if let Ok(out) = Command::new("pmset")
-        .args(["-g", "assertions"])
-        .output()
-    {
-        let stdout = String::from_utf8_lossy(&out.stdout);
-        if stdout.contains("PreventUserIdleSystemSleep") && stdout.contains("coreaudiod") {
-            return true;
-        }
-    }
     false
 }
 
-/// Checks if the laptop lid is currently closed on macOS via AppleClamshellState.
+/// Checks if the laptop lid is currently closed on macOS.
 pub fn is_lid_closed() -> bool {
-    let output = Command::new("ioreg")
-        .args(["-r", "-k", "AppleClamshellState"])
-        .output();
-    if let Ok(out) = output {
-        let stdout = String::from_utf8_lossy(&out.stdout);
-        stdout.contains("\"AppleClamshellState\" = Yes")
-    } else {
-        false
-    }
+    false
 }
 
 /// Senses if macOS is currently using Dark Mode.
@@ -1100,7 +1083,7 @@ pub fn run_macos_app() {
                     continue;
                 }
 
-                if state.config.enabled && !is_lid_closed() {
+                if state.config.enabled {
                     let in_quiet = crate::is_in_quiet_hours(&state.config);
 
                     if !in_quiet {
@@ -1108,7 +1091,7 @@ pub fn run_macos_app() {
                             state.remaining_seconds -= 1;
                         } else {
                             state.audio_files = crate::get_audio_files();
-                            if !state.audio_files.is_empty() && !is_audio_playing() {
+                            if !state.audio_files.is_empty() {
                                 let rand_idx = crate::get_random_index(state.audio_files.len());
                                 let selected_file = state.audio_files[rand_idx].clone();
                                 if let Some(bytes) = crate::builtin_audio::get_builtin_bytes(&selected_file) {
